@@ -144,23 +144,6 @@ export class AuthService {
     });
   }
 
-  async getMe(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        avatarUrl: true,
-        googleId: true,
-        appleId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-    if (!user) throw new ForbiddenException('User not found');
-    return user;
-  }
 
   // ─── OAuth ───────────────────────────────────────────────────────────────
 

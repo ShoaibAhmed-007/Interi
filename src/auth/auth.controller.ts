@@ -38,9 +38,13 @@ export class AuthController {
   @Get('/me')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get current authenticated user details' })
-  @ApiResponse({ status: 200, description: 'Returns user id, email, name, and other profile details' })
-  getMe(@GetUser('sub') userId: string) {
-    return this.authService.getMe(userId);
+  @ApiResponse({ status: 200, description: 'Returns name, email, and createdAt' })
+  getMe(@GetUser() user: { name: string; email: string; createdAt: Date }) {
+    return {
+      name: user.name,
+      email: user.email,
+      createdAt: user.createdAt,
+    };
   }
 
   @Post('/signup')
