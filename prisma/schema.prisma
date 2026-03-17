@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String?
+  hash         String?  // password hash (nullable for OAuth accounts)
+  refreshToken String?  // hashed refresh token
+  googleId     String?  @unique
+  appleId      String?  @unique
+  designs      Design[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Design {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  
+  // This tells the database if it's interior, exterior, etc. (INTERIOR, EXTERIOR, LANDSCAPE, NEW_FLOORING)
+  category         String 
+
+  // The Interface Properties
+  originalImageUrl String         // The raw photo they uploaded
+  resultImageUrl   String?        // The AI generated photo
+  location         String         // e.g., "Living Room" or "Backyard"
+  style            String         // e.g., "Luxury" or "Farmhouse"
+  colorPalette     String         // e.g., "High-Contrast"
+  
+  // Technical AI stuff you might want to save for "Regenerate" feature
+  seedUsed         BigInt?        
+  
+  createdAt        DateTime       @default(now())
+}
