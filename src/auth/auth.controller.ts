@@ -34,6 +34,15 @@ export class AuthController {
     return this.authService.getHealthStatus();
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Get('/me')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Get current authenticated user details' })
+  @ApiResponse({ status: 200, description: 'Returns user id, email, name, and other profile details' })
+  getMe(@GetUser('sub') userId: string) {
+    return this.authService.getMe(userId);
+  }
+
   @Post('/signup')
   @ApiOperation({ summary: 'Register a new user' })
   @ApiResponse({ status: 201, description: 'User registered and tokens returned' })
