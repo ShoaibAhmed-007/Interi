@@ -10,11 +10,13 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class OpenaiPromptGenerationService {
-  constructor(private prisma: PrismaService) {}
+  private openai: OpenAI;
 
-  private openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
+  constructor(private prisma: PrismaService) {
+    this.openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY ?? 'missing-key',
+    });
+  }
 
   async generatePromptFromDesign(
     designId: string,

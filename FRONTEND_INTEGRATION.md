@@ -136,7 +136,48 @@ const signin = async (email: string, password: string) => {
 
 ---
 
-### 2.3 Google OAuth (Expo)
+### 2.3 Get Current User (`/auth/me`)
+
+Call this after login to load the user's profile — name, email, and account creation date.
+
+```ts
+// GET /auth/me  (requires Authorization: Bearer <access_token>)
+const getMe = async () => {
+  const { data } = await api.get('/auth/me');
+  return data;
+};
+```
+
+**Response (200):**
+```json
+{
+  "name": "Alice",
+  "email": "alice@example.com",
+  "createdAt": "2026-03-17T12:34:56.789Z"
+}
+```
+
+**Error:** `401 Unauthorized` — missing or expired access token.
+
+> **Tip:** Call this on app launch (after restoring tokens from `SecureStore`) to verify the session is still valid and populate your auth context/store.
+
+```ts
+// Example: restore session on app boot
+const restoreSession = async () => {
+  try {
+    const user = await getMe();
+    // Session valid — set user in state
+    setUser(user);
+  } catch {
+    // Token expired or logged out — redirect to login
+    setUser(null);
+  }
+};
+```
+
+---
+
+### 2.5 Google OAuth (Expo)
 
 The backend expects a Google `idToken` — get it from `expo-auth-session` or `@react-native-google-signin/google-signin`, then send it:
 
@@ -161,7 +202,7 @@ const googleLogin = async (idToken: string) => {
 
 ---
 
-### 2.4 Apple Sign In (Expo)
+### 2.6 Apple Sign In (Expo)
 
 Use `expo-apple-authentication` to get the `identityToken`, then send:
 
@@ -196,7 +237,7 @@ const appleLogin = async () => {
 
 ---
 
-### 2.5 Logout
+### 2.7 Logout
 
 ```ts
 // POST /auth/logout  (requires Authorization: Bearer <access_token>)
@@ -258,6 +299,7 @@ const refreshTokens = async (): Promise<string | null> => {
 | `GET` | `/auth/health` | None | Health check |
 | `POST` | `/auth/signup` | None | Register with email/password |
 | `POST` | `/auth/signin` | None | Login with email/password |
+| `GET` | `/auth/me` | `access_token` | Get current user profile |
 | `POST` | `/auth/refresh` | `refresh_token` | Rotate both tokens |
 | `POST` | `/auth/logout` | `access_token` | Invalidate session |
 | `POST` | `/auth/oauth/google` | None | Google login |
@@ -715,6 +757,16 @@ export const getErrorMessage = (error: any): string => {
 
 ## 8. Data Models
 
+### UserProfile (from `/auth/me`)
+
+```ts
+interface UserProfile {
+  name: string;
+  email: string;
+  createdAt: string; // ISO date string
+}
+```
+
 ### User (from JWT payload)
 
 ```ts
@@ -764,6 +816,7 @@ Swagger:  http://localhost:3001/api/docs
 ── Auth ──────────────────────────────────────
 POST  /auth/signup              { name, email, password }
 POST  /auth/signin              { email, password }
+GET   /auth/me                  Bearer: access_token → { name, email, createdAt }
 POST  /auth/refresh             Bearer: refresh_token
 POST  /auth/logout              Bearer: access_token
 POST  /auth/oauth/google        { idToken }
