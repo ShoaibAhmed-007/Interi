@@ -12,7 +12,6 @@ export class DesignService {
         userId,
         category: createDesignDto.category,
         originalImageUrl: createDesignDto.originalImageUrl,
-        resultImageUrl: createDesignDto.resultImageUrl,
         location: createDesignDto.location,
         style: createDesignDto.style,
         colorPalette: createDesignDto.colorPalette,

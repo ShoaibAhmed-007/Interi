@@ -22,10 +22,10 @@ export class CreateDesignDto {
   @IsNotEmpty()
   originalImageUrl: string;
 
-  @ApiPropertyOptional({ example: 'https://example.com/result.jpg' })
+  @ApiPropertyOptional({ example: 'living room' })
   @IsString()
   @IsOptional()
-  resultImageUrl?: string;
+  
 
   @ApiProperty({ example: 'Living Room' })
   @IsString()
