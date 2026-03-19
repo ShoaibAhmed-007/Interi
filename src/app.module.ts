@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { DesignModule } from './design/design.module';
 import { OpenaiPromptGenerationModule } from './openai-prompt-generation/openai-prompt-generation.module';
 import { FluxImageGenerationModule } from './flux-image-generation/flux-image-generation.module';
+import { AmazonS3Module } from './amazon-s3/amazon-s3.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { FluxImageGenerationModule } from './flux-image-generation/flux-image-ge
     DesignModule,
     OpenaiPromptGenerationModule,
     FluxImageGenerationModule,
+    AmazonS3Module,
   ],
   controllers: [AppController],
   providers: [AppService],
