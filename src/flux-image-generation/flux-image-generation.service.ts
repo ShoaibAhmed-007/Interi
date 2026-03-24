@@ -2,10 +2,23 @@ import { Injectable, InternalServerErrorException, NotFoundException, BadRequest
 import { PrismaService } from '../prisma/prisma.service';
 import { AmazonS3Service } from '../amazon-s3/amazon-s3.service';
 import { Prisma } from '@prisma/client';
+import { resolve } from 'dns';
+import { promisify } from 'util';
 
 @Injectable()
 export class FluxImageGenerationService {
   constructor(private prisma: PrismaService, private s3: AmazonS3Service) {}
+
+  private async testDNS(hostname: string): Promise<string | null> {
+    try {
+      const dnsResolve4 = promisify(resolve);
+      const addresses = await dnsResolve4(hostname);
+      return addresses?.[0] || null;
+    } catch (err) {
+      console.warn('[FluxImageGeneration] DNS resolution failed for', { hostname, err });
+      return null;
+    }
+  }
 
   private async safeFetch(
     url: string,
@@ -58,7 +71,18 @@ export class FluxImageGenerationService {
 
         const isTransient = isAborted || isTimeout || isNetworkError;
 
-        console.warn('[FluxImageGeneration] Fetch attempt failed', {
+        // On first attempt, run DNS diagnostics if it's a network error
+        let dnsResult: string | null | undefined;
+        if (attempt === 0 && (isTimeout || isNetworkError)) {
+          try {
+            const urlObj = new URL(url);
+            dnsResult = await this.testDNS(urlObj.hostname);
+          } catch (e) {
+            console.warn('[FluxImageGeneration] Failed to parse URL for DNS test', { url });
+          }
+        }
+
+        const warnLog: any = {
           url,
           label,
           attempt: attempt + 1,
@@ -69,7 +93,17 @@ export class FluxImageGenerationService {
           isTimeout,
           isNetworkError,
           isTransient,
-        });
+        };
+
+        if (dnsResult) {
+          warnLog.dnsResolvedIp = dnsResult;
+        }
+
+        if (attempt === 0 && !dnsResult && isNetworkError) {
+          warnLog.dnsDiagnostics = 'DNS resolution may have failed — check network connectivity and firewall rules';
+        }
+
+        console.warn('[FluxImageGeneration] Fetch attempt failed', warnLog);
 
         if (attempt < maxRetries && isTransient) {
           const delayMs = Math.min(1000 * Math.pow(2, attempt), 5000);
