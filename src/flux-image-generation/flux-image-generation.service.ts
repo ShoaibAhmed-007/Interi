@@ -212,7 +212,7 @@ ${dto.colorPalette}`;
           }),
         },
         'submitJob',
-        45000, // 45 sec timeout for large image upload
+        300000, // 5 min timeout for large image upload
         3, // 3 retries for transient network issues
       );
 
