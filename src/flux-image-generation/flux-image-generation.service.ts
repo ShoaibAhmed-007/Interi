@@ -30,6 +30,7 @@ export class FluxImageGenerationService {
       throw new InternalServerErrorException('MISSING_API_KEY: BFL_API_KEY is not defined in .env');
     }
 
+    let jobId: string | null = null;
     try {
       let originalBuffer: Buffer;
       let originalContentType = 'image/jpeg';
@@ -83,7 +84,7 @@ ${dto.colorPalette}`;
       }
 
       const submitData = await submitResponse.json();
-      const jobId = submitData.id;
+      jobId = submitData.id;
 
       // Poll for result
       let generatedImageUrl = null;
@@ -134,7 +135,9 @@ ${dto.colorPalette}`;
         s3Key: upload.s3Key,
       };
     } catch (error) {
-      console.error('Flux Pro generation failed:', error?.message ?? error);
+      console.error('[FluxImageGeneration] Flux Pro generation failed', { designId, jobId, error });
+      // Also log stack if available for deeper debugging
+      if (error && (error as any).stack) console.error((error as any).stack);
       throw new InternalServerErrorException('Failed to generate image via Flux.');
     }
   }
