@@ -179,29 +179,29 @@ export class FluxImageGenerationService {
         originalContentType = originalResp.headers.get('content-type') || originalContentType;
       }
 
-      // Build prompt and force 1 megapixel output (~1024x1024)
-      const prompt = `Please generate an edited version of the provided image.
-Output must be exactly one megapixel or smaller (approximately 1024x1024 pixels).
-Maintain important scene elements and proportions.
+      // Build prompt as requested, with corrected spelling and structure
+      const prompt = `Do not change dimensions and the result should not surpass 1 megapixel.
 
-Setting:
-${dto.category}
-${dto.location}
-${dto.style}
-${dto.colorPalette}`;
+The picture is of ${dto.location}.
+You need to change the ${dto.category}.
+Make the style ${dto.style}.
+The color palette should be ${dto.colorPalette}.`;
 
-      // Submit job to Flux / BFL API and request size ~1024x1024
+      // Submit job to Flux Kontext Pro API (image-to-image editing)
       const bflBase = process.env.BFL_API_ENDPOINT || 'https://api.bfl.ai';
-      const endpoint = `${bflBase.replace(/\/$/, '')}/v1/flux-pro-1.0-image-to-image`;
+      const endpoint = `${bflBase.replace(/\/$/, '')}/v1/flux-kontext-pro`;
       const maskedApiKey = apiKey ? `${apiKey.slice(0, 8)}...` : null;
       const imageBase64 = originalBuffer.toString('base64');
-      console.info('[FluxImageGeneration] Submitting job to Flux', {
+      
+      const estimatedPriceCents = 5; // Flux Kontext Pro is $0.05 per image
+      console.info('[FluxImageGeneration] Submitting job to Flux Kontext Pro:', {
         designId,
         endpoint,
         apiKeySet: !!apiKey,
         apiKeyMask: maskedApiKey,
-        promptSnippet: prompt.slice(0, 200),
+        promptSnippet: prompt.replace(/\n/g, ' ').slice(0, 150) + '...',
         imageSizeBytes: originalBuffer.length,
+        estimatedCost: `$${(estimatedPriceCents / 100).toFixed(2)} USD`,
       });
 
       const submitResponse = await this.safeFetch(
@@ -214,11 +214,11 @@ ${dto.colorPalette}`;
           },
           body: JSON.stringify({
             prompt,
-            image: `data:image/jpeg;base64,${imageBase64}`,
+            input_image: `data:${originalContentType};base64,${imageBase64}`,
             prompt_upsampling: false,
-            strength: 0.8,
-            // Requesting size; API may ignore, but include to constrain to ~1MP
-            size: '1024x1024',
+            output_format: 'jpeg',
+            safety_tolerance: 2,
+            aspect_ratio: '1:1',
           }),
         },
         'submitJob',
@@ -253,7 +253,9 @@ ${dto.colorPalette}`;
           pollUrl,
           {
             method: 'GET',
-            headers: { 'X-Key': apiKey },
+            headers: {
+              'X-Key': apiKey,
+            },
           },
           'poll',
           10000, // 10 sec timeout per poll attempt

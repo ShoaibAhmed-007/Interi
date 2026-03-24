@@ -77,8 +77,7 @@ export class AmazonS3Service {
       Key: uniqueKey,
       Body: buffer,
       ContentType: contentType,
-      ACL: 'public-read',
-    } as any);
+    });
 
     try {
       await this.s3Client.send(command);
