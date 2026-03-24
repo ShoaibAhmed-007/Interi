@@ -7,6 +7,85 @@ import { Prisma } from '@prisma/client';
 export class FluxImageGenerationService {
   constructor(private prisma: PrismaService, private s3: AmazonS3Service) {}
 
+  private async safeFetch(
+    url: string,
+    options: any = undefined,
+    label = 'fetch',
+    timeoutMs = 30000,
+    maxRetries = 2,
+  ) {
+    let lastErr: any = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+        const resp = await fetch(url, {
+          ...options,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+        return resp;
+      } catch (err) {
+        clearTimeout((err as any).timeout);
+        lastErr = err;
+
+        // Extract error message and cause chain
+        const errMsg = err && (err as any).message ? (err as any).message : String(err);
+        const cause = (err as any).cause;
+        const causeMsg = cause && (cause as any).message ? (cause as any).message : '';
+        const causeCode = cause && (cause as any).code ? (cause as any).code : (err as any).code;
+
+        const fullErrMsg = causeMsg ? `${errMsg} (cause: ${causeMsg})` : errMsg;
+
+        // Detect transient errors more comprehensively
+        const isAborted = errMsg.includes('abort') || causeMsg.includes('abort');
+        const isTimeout =
+          errMsg.includes('Timeout') ||
+          causeMsg.includes('Timeout') ||
+          causeCode === 'UND_ERR_CONNECT_TIMEOUT' ||
+          causeCode === 'UND_ERR_SOCKET_TIMEOUT' ||
+          causeCode === 'ETIMEDOUT';
+        const isNetworkError =
+          causeCode === 'ECONNREFUSED' ||
+          causeCode === 'ENOTFOUND' ||
+          causeCode === 'EHOSTUNREACH' ||
+          causeCode === 'ENETUNREACH' ||
+          causeMsg.includes('getaddrinfo') ||
+          causeMsg.includes('Connect');
+
+        const isTransient = isAborted || isTimeout || isNetworkError;
+
+        console.warn('[FluxImageGeneration] Fetch attempt failed', {
+          url,
+          label,
+          attempt: attempt + 1,
+          maxRetries: maxRetries + 1,
+          errMsg: fullErrMsg,
+          causeCode,
+          isAborted,
+          isTimeout,
+          isNetworkError,
+          isTransient,
+        });
+
+        if (attempt < maxRetries && isTransient) {
+          const delayMs = Math.min(1000 * Math.pow(2, attempt), 5000);
+          console.info(`[FluxImageGeneration] Retrying ${label} in ${delayMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+
+        throw new Error(
+          `fetch failed (${label}, attempt ${attempt + 1}/${maxRetries + 1}): ${fullErrMsg}`,
+        );
+      }
+    }
+
+    throw new Error(`fetch failed (${label}): exhausted ${maxRetries + 1} retries`);
+  }
   async generateImageForDesign(designId: string) {
     const design = await this.prisma.design.findUnique({ where: { id: designId } });
     if (!design) {
@@ -42,7 +121,13 @@ export class FluxImageGenerationService {
         originalBuffer = downloaded.buffer;
         originalContentType = downloaded.contentType || originalContentType;
       } else {
-        const originalResp = await fetch(design.originalImageUrl);
+        const originalResp = await this.safeFetch(
+          design.originalImageUrl,
+          undefined,
+          'originalImage',
+          15000, // 15 sec timeout
+          1, // 1 retry
+        );
         if (!originalResp.ok) {
           throw new Error('Failed to download original image');
         }
@@ -62,29 +147,53 @@ ${dto.style}
 ${dto.colorPalette}`;
 
       // Submit job to Flux / BFL API and request size ~1024x1024
-      const submitResponse = await fetch('https://api.bfl.ml/v1/flux-pro-1.0-image-to-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Key': apiKey,
-        },
-        body: JSON.stringify({
-          prompt,
-          image: `data:image/jpeg;base64,${originalBuffer.toString('base64')}`,
-          prompt_upsampling: false,
-          strength: 0.8,
-          // Requesting size; API may ignore, but include to constrain to ~1MP
-          size: '1024x1024',
-        }),
+      const bflBase = process.env.BFL_API_ENDPOINT || 'https://api.bfl.ml';
+      const endpoint = `${bflBase.replace(/\/$/, '')}/v1/flux-pro-1.0-image-to-image`;
+      const maskedApiKey = apiKey ? `${apiKey.slice(0, 8)}...` : null;
+      const imageBase64 = originalBuffer.toString('base64');
+      console.info('[FluxImageGeneration] Submitting job to Flux', {
+        designId,
+        endpoint,
+        apiKeySet: !!apiKey,
+        apiKeyMask: maskedApiKey,
+        promptSnippet: prompt.slice(0, 200),
+        imageSizeBytes: originalBuffer.length,
       });
+
+      const submitResponse = await this.safeFetch(
+        endpoint,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Key': apiKey,
+          },
+          body: JSON.stringify({
+            prompt,
+            image: `data:image/jpeg;base64,${imageBase64}`,
+            prompt_upsampling: false,
+            strength: 0.8,
+            // Requesting size; API may ignore, but include to constrain to ~1MP
+            size: '1024x1024',
+          }),
+        },
+        'submitJob',
+        45000, // 45 sec timeout for large image upload
+        3, // 3 retries for transient network issues
+      );
 
       if (!submitResponse.ok) {
         const errDetails = await submitResponse.text();
+        console.error('[FluxImageGeneration] BFL job submission failed', { designId, status: submitResponse.status, body: errDetails });
         throw new Error(`BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`);
       }
 
       const submitData = await submitResponse.json();
       jobId = submitData.id;
+      if (!jobId) {
+        console.error('[FluxImageGeneration] BFL submission returned no job id', { designId, submitData });
+        throw new Error('BFL submission did not return job id');
+      }
 
       // Poll for result
       let generatedImageUrl = null;
@@ -95,12 +204,23 @@ ${dto.colorPalette}`;
         await new Promise((resolve) => setTimeout(resolve, 2000));
         attempt++;
 
-        const pollResponse = await fetch(`https://api.bfl.ml/v1/get_result?id=${jobId}`, {
-          method: 'GET',
-          headers: { 'X-Key': apiKey },
-        });
+        const pollUrl = `${bflBase.replace(/\/$/, '')}/v1/get_result?id=${encodeURIComponent(jobId)}`;
+        const pollResponse = await this.safeFetch(
+          pollUrl,
+          {
+            method: 'GET',
+            headers: { 'X-Key': apiKey },
+          },
+          'poll',
+          10000, // 10 sec timeout per poll attempt
+          1, // 1 retry for transient failures
+        );
 
-        if (!pollResponse.ok) continue;
+        if (!pollResponse.ok) {
+          const txt = await pollResponse.text().catch(() => '<no-body>');
+          console.warn('[FluxImageGeneration] BFL poll returned non-OK', { designId, jobId, attempt, status: pollResponse.status, body: txt });
+          continue;
+        }
 
         const pollData = await pollResponse.json();
         const status = pollData.status;
@@ -108,6 +228,7 @@ ${dto.colorPalette}`;
           generatedImageUrl = pollData.result.sample;
           break;
         } else if (status === 'Failed' || status === 'Error') {
+          console.error('[FluxImageGeneration] BFL reported job failure', { designId, jobId, attempt, pollData });
           throw new Error(`BFL Job Failed with status: ${status}`);
         }
       }
@@ -115,8 +236,18 @@ ${dto.colorPalette}`;
       if (!generatedImageUrl) throw new Error('BFL API Polling timed out');
 
       // Download generated image
-      const genResp = await fetch(generatedImageUrl);
-      if (!genResp.ok) throw new Error('Failed to download generated image');
+      const genResp = await this.safeFetch(
+        generatedImageUrl,
+        undefined,
+        'generatedImage',
+        20000, // 20 sec timeout
+        2, // 2 retries
+      );
+      if (!genResp.ok) {
+        const txt = await genResp.text().catch(() => '<no-body>');
+        console.error('[FluxImageGeneration] Failed to download generated image', { designId, jobId, status: genResp.status, body: txt });
+        throw new Error('Failed to download generated image');
+      }
       const genBuffer = Buffer.from(await genResp.arrayBuffer());
       const genContentType = genResp.headers.get('content-type') || 'image/jpeg';
 
@@ -136,8 +267,14 @@ ${dto.colorPalette}`;
       };
     } catch (error) {
       console.error('[FluxImageGeneration] Flux Pro generation failed', { designId, jobId, error });
-      // Also log stack if available for deeper debugging
       if (error && (error as any).stack) console.error((error as any).stack);
+
+      const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
+      const errMessage = (error && (error as any).message) ? (error as any).message : String(error);
+      if (debugEnabled) {
+        throw new InternalServerErrorException(`Failed to generate image via Flux: ${errMessage}`);
+      }
+
       throw new InternalServerErrorException('Failed to generate image via Flux.');
     }
   }
