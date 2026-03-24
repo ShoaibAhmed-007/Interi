@@ -4,6 +4,7 @@ import { AmazonS3Service } from '../amazon-s3/amazon-s3.service';
 import { Prisma } from '@prisma/client';
 import { resolve } from 'dns';
 import { promisify } from 'util';
+import { ProxyAgent } from 'undici';
 
 @Injectable()
 export class FluxImageGenerationService {
@@ -20,6 +21,15 @@ export class FluxImageGenerationService {
     }
   }
 
+  private buildFetchDispatcher(): ProxyAgent | undefined {
+    const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+    if (proxyUrl) {
+      console.info('[FluxImageGeneration] Using proxy', { proxyUrl });
+      return new ProxyAgent(proxyUrl);
+    }
+    return undefined;
+  }
+
   private async safeFetch(
     url: string,
     options: any = undefined,
@@ -27,7 +37,7 @@ export class FluxImageGenerationService {
     timeoutMs = 30000,
     maxRetries = 2,
   ) {
-    let lastErr: any = null;
+    const dispatcher = this.buildFetchDispatcher();
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -37,13 +47,13 @@ export class FluxImageGenerationService {
         const resp = await fetch(url, {
           ...options,
           signal: controller.signal,
-        });
+          ...(dispatcher ? { dispatcher } : {}),
+        } as any);
 
         clearTimeout(timeout);
         return resp;
       } catch (err) {
         clearTimeout((err as any).timeout);
-        lastErr = err;
 
         // Extract error message and cause chain
         const errMsg = err && (err as any).message ? (err as any).message : String(err);
@@ -181,7 +191,7 @@ ${dto.style}
 ${dto.colorPalette}`;
 
       // Submit job to Flux / BFL API and request size ~1024x1024
-      const bflBase = process.env.BFL_API_ENDPOINT || 'https://api.bfl.ml';
+      const bflBase = process.env.BFL_API_ENDPOINT || 'https://api.bfl.ai';
       const endpoint = `${bflBase.replace(/\/$/, '')}/v1/flux-pro-1.0-image-to-image`;
       const maskedApiKey = apiKey ? `${apiKey.slice(0, 8)}...` : null;
       const imageBase64 = originalBuffer.toString('base64');

@@ -574,7 +574,7 @@ const generateFluxImage = async (
 ```json
 {
   "success": true,
-  "imageUrl": "https://cdn.bfl.ml/results/...",
+  "imageUrl": "https://cdn.bfl.ai/results/...",
   "promptUsed": "must: keep the dimensions same...\ninterior\nLiving Room\nModern\nWarm earth tones"
 }
 ```
