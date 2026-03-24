@@ -1,6 +1,7 @@
 import { Controller, Post, Body, UseGuards, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBody, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { GetUser } from '../auth/decorator/get-user.decorator';
 import { FluxImageGenerationService } from './flux-image-generation.service';
 
 @ApiTags('flux-image-generation')
@@ -28,10 +29,14 @@ export class FluxImageGenerationController {
   @ApiResponse({ status: 401, description: 'Unauthorized — invalid or missing JWT' })
   async getImage(
     @Body('designId') designId: string,
+    @GetUser('id') userId: string,
   ) {
     if (!designId) {
       throw new BadRequestException('designId is required');
     }
+
+    // Check and consume credits before generation
+    await this.fluxImageGenerationService.checkForCredits(userId);
 
     const result = await this.fluxImageGenerationService.generateImageForDesign(designId);
 

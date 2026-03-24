@@ -38,12 +38,17 @@ export class AuthController {
   @Get('/me')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get current authenticated user details' })
-  @ApiResponse({ status: 200, description: 'Returns name, email, and createdAt' })
-  getMe(@GetUser() user: { name: string; email: string; createdAt: Date }) {
+  @ApiResponse({ status: 200, description: 'Returns name, email, createdAt, freeTrialsLeft and subscribed' })
+  getMe(
+    @GetUser()
+    user: { name: string; email: string; createdAt: Date; freeTrialsLeft: number; subscribed: boolean },
+  ) {
     return {
       name: user.name,
       email: user.email,
       createdAt: user.createdAt,
+      freeTrialsLeft: user.freeTrialsLeft,
+      subscribed: user.subscribed,
     };
   }
 

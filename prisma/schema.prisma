@@ -9,35 +9,59 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
+  id           String  @id @default(uuid())
+  email        String  @unique
   name         String?
-hash         String?  // password hash (nullable for OAuth accounts)
-  refreshToken String?  // hashed refresh token
-  googleId     String?  @unique
-  appleId      String?  @unique
-  designs      Design[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  hash         String? // password hash (nullable for OAuth accounts)
+  refreshToken String? // hashed refresh token
+  googleId     String? @unique
+  appleId      String? @unique
+
+  // Free trials remaining for the user (default 3)
+  freeTrialsLeft Int @default(3)
+
+  // Whether the user currently has an active subscription
+  subscribed Boolean @default(false)
+
+  // Subscriptions for the user
+  subscriptions Subscription[]
+
+  designs   Design[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Design {
-  id               String   @id @default(uuid())
-  userId           String
-  user             User     @relation(fields: [userId], references: [id])
-  
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
   // This tells the database if it's interior, exterior, etc. (INTERIOR, EXTERIOR, LANDSCAPE, NEW_FLOORING)
-  category         String 
+  category String
 
   // The Interface Properties
-  originalImageUrl String         // The raw photo they uploaded
-  resultImageUrl   String?        // The AI generated photo
-  location         String         // e.g., "Living Room" or "Backyard"
-  style            String         // e.g., "Luxury" or "Farmhouse"
-  colorPalette     String         // e.g., "High-Contrast"
-  
+  originalImageUrl String // The raw photo they uploaded
+  resultImageUrl   String? // The AI generated photo
+  location         String // e.g., "Living Room" or "Backyard"
+  style            String // e.g., "Luxury" or "Farmhouse"
+  colorPalette     String // e.g., "High-Contrast"
+
   // Technical AI stuff you might want to save for "Regenerate" feature
-  seedUsed         BigInt?        
-  
-  createdAt        DateTime       @default(now())
+  seedUsed BigInt?
+
+  createdAt DateTime @default(now())
+}
+
+model Subscription {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  totalCredits Int // e.g. 50 tries
+  usedCredits  Int @default(0)
+
+  startDate DateTime
+  endDate   DateTime
+
+  createdAt DateTime @default(now())
 }

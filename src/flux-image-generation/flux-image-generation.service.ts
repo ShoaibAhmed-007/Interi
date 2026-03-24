@@ -1,6 +1,7 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AmazonS3Service } from '../amazon-s3/amazon-s3.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class FluxImageGenerationService {
@@ -117,5 +118,53 @@ ${dto.colorPalette}`;
       console.error('Flux Pro generation failed:', error?.message ?? error);
       throw new InternalServerErrorException('Failed to generate image via Flux.');
     }
+  }
+
+  /**
+   * Check and consume credits for a user before generating an image.
+   * Priority: use freeTrialsLeft if available, otherwise consume from an active subscription.
+   * Throws BadRequestException if no credits are available.
+   */
+  async checkForCredits(userId: string) {
+    const now = new Date();
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    // If user has free trials remaining, decrement and allow
+    if (user.freeTrialsLeft && user.freeTrialsLeft > 0) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { freeTrialsLeft: { decrement: 1 } as unknown as Prisma.IntFieldUpdateOperationsInput },
+      });
+      return;
+    }
+
+    // No free trials left — if user is subscribed, check subscriptions
+    if (user.subscribed) {
+      const activeSubs = await this.prisma.subscription.findMany({
+        where: {
+          userId,
+          startDate: { lte: now },
+          endDate: { gte: now },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      // Find a subscription that still has available credits
+      const usable = activeSubs.find((s) => (s.totalCredits - s.usedCredits) > 0);
+      if (usable) {
+        await this.prisma.subscription.update({
+          where: { id: usable.id },
+          data: { usedCredits: { increment: 1 } as unknown as Prisma.IntFieldUpdateOperationsInput },
+        });
+        return;
+      }
+
+      throw new BadRequestException('Not enough credits left in subscription');
+    }
+
+    // No free trials and not subscribed
+    throw new BadRequestException('Not enough credits left');
   }
 }
