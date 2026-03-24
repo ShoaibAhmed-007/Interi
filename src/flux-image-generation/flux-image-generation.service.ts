@@ -31,11 +31,23 @@ export class FluxImageGenerationService {
     }
 
     try {
-      const originalResp = await fetch(design.originalImageUrl);
-      if (!originalResp.ok) {
-        throw new Error('Failed to download original image');
+      let originalBuffer: Buffer;
+      let originalContentType = 'image/jpeg';
+
+      // If originalImageUrl looks like an S3 key (no http/https), download from S3
+      if (!design.originalImageUrl.startsWith('http')) {
+        const s3Key = design.originalImageUrl;
+        const downloaded = await this.s3.downloadBuffer(s3Key);
+        originalBuffer = downloaded.buffer;
+        originalContentType = downloaded.contentType || originalContentType;
+      } else {
+        const originalResp = await fetch(design.originalImageUrl);
+        if (!originalResp.ok) {
+          throw new Error('Failed to download original image');
+        }
+        originalBuffer = Buffer.from(await originalResp.arrayBuffer());
+        originalContentType = originalResp.headers.get('content-type') || originalContentType;
       }
-      const originalBuffer = Buffer.from(await originalResp.arrayBuffer());
 
       // Build prompt and force 1 megapixel output (~1024x1024)
       const prompt = `Please generate an edited version of the provided image.
@@ -105,12 +117,19 @@ ${dto.colorPalette}`;
       const genResp = await fetch(generatedImageUrl);
       if (!genResp.ok) throw new Error('Failed to download generated image');
       const genBuffer = Buffer.from(await genResp.arrayBuffer());
+      const genContentType = genResp.headers.get('content-type') || 'image/jpeg';
 
       // Upload to S3 interior-app/ folder
-      const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genResp.headers.get('content-type') || 'image/jpeg');
+      const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
+
+      // Persist the result S3 key in the Design.resultImageUrl field
+      await this.prisma.design.update({ where: { id: designId }, data: { resultImageUrl: upload.s3Key } });
+
+      const presigned = await this.s3.generatePresignedDownloadUrl(upload.s3Key);
 
       return {
         imageUrl: upload.publicUrl,
+        presignedUrl: presigned,
         promptUsed: prompt,
         s3Key: upload.s3Key,
       };

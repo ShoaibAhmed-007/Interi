@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -87,6 +87,45 @@ export class AmazonS3Service {
     } catch (error) {
       console.error('[AmazonS3Service] Failed to upload buffer to S3:', error?.message ?? error);
       throw new InternalServerErrorException('Failed to upload file to S3.');
+    }
+  }
+
+  /**
+   * Download an object from S3 and return its buffer and content-type.
+   * @param s3Key Key of the object in the bucket (e.g. 'interior-app/...jpg')
+   */
+  async downloadBuffer(s3Key: string): Promise<{ buffer: Buffer; contentType: string }> {
+    const command = new GetObjectCommand({ Bucket: this.bucketName, Key: s3Key });
+    try {
+      const response = await this.s3Client.send(command);
+      const stream = response.Body as any;
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(Buffer.from(chunk));
+      }
+      const buffer = Buffer.concat(chunks);
+      const contentType = (response.ContentType as string) || 'application/octet-stream';
+      return { buffer, contentType };
+    } catch (error) {
+      console.error('[AmazonS3Service] Failed to download object from S3:', error?.message ?? error);
+      throw new InternalServerErrorException('Failed to download file from S3.');
+    }
+  }
+
+  /**
+   * Generate a presigned GET URL for a stored object so clients can download/view it.
+   * @param s3Key Key of the object in the bucket (e.g. 'interior-app/...jpg')
+   * @param expiresIn Seconds until the signed URL expires (default 3600 = 1 hour)
+   */
+  async generatePresignedDownloadUrl(s3Key: string, expiresIn = 3600): Promise<string> {
+    const command = new GetObjectCommand({ Bucket: this.bucketName, Key: s3Key });
+    try {
+      const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+      return url;
+    } catch (error) {
+      console.error('[AmazonS3Service] Failed to generate presigned GET URL:', error?.message ?? error);
+      throw new InternalServerErrorException('Failed to generate presigned download URL.');
     }
   }
 }
