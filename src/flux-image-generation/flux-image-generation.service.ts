@@ -1,25 +1,28 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { AmazonS3Service } from '../amazon-s3/amazon-s3.service';
 
 @Injectable()
 export class FluxImageGenerationService {
-  async generateImage(
-    dto: { category: string; location: string; style: string; colorPalette: string },
-    imageBuffer: Buffer,
-  ) {
-    // Generate the exact prompt structure requested
-    const prompt = `must : keep the dimensions same (i.e windows door area)
+  constructor(private prisma: PrismaService, private s3: AmazonS3Service) {}
 
-setting :-
-${dto.category}
-${dto.location}
-${dto.style}
-${dto.colorPalette}`;
+  async generateImageForDesign(designId: string) {
+    const design = await this.prisma.design.findUnique({ where: { id: designId } });
+    if (!design) {
+      throw new NotFoundException('Design not found');
+    }
 
-    const base64Image = imageBuffer.toString('base64');
+    const dto = {
+      category: design.category,
+      location: design.location,
+      style: design.style,
+      colorPalette: design.colorPalette,
+    };
 
-    console.log(`\n=== FLUX PRO API ===`);
-    console.log(`[Prompt Sent]:\n${prompt}`);
-    console.log(`[Image Sent]: ${imageBuffer.length} bytes`);
+    // Download original image referenced by design.originalImageUrl
+    if (!design.originalImageUrl) {
+      throw new InternalServerErrorException('Design does not have an originalImageUrl');
+    }
 
     const apiKey = process.env.BFL_API_KEY;
     if (!apiKey) {
@@ -27,8 +30,24 @@ ${dto.colorPalette}`;
     }
 
     try {
-      // 1. Submit the job
-      // Note: Assuming he latest available image-to-image model endpoint for BFL
+      const originalResp = await fetch(design.originalImageUrl);
+      if (!originalResp.ok) {
+        throw new Error('Failed to download original image');
+      }
+      const originalBuffer = Buffer.from(await originalResp.arrayBuffer());
+
+      // Build prompt and force 1 megapixel output (~1024x1024)
+      const prompt = `Please generate an edited version of the provided image.
+Output must be exactly one megapixel or smaller (approximately 1024x1024 pixels).
+Maintain important scene elements and proportions.
+
+Setting:
+${dto.category}
+${dto.location}
+${dto.style}
+${dto.colorPalette}`;
+
+      // Submit job to Flux / BFL API and request size ~1024x1024
       const submitResponse = await fetch('https://api.bfl.ml/v1/flux-pro-1.0-image-to-image', {
         method: 'POST',
         headers: {
@@ -37,9 +56,11 @@ ${dto.colorPalette}`;
         },
         body: JSON.stringify({
           prompt,
-          image: `data:image/jpeg;base64,${base64Image}`,
+          image: `data:image/jpeg;base64,${originalBuffer.toString('base64')}`,
           prompt_upsampling: false,
-          strength: 0.8, // standard image to image strength
+          strength: 0.8,
+          // Requesting size; API may ignore, but include to constrain to ~1MP
+          size: '1024x1024',
         }),
       });
 
@@ -51,53 +72,46 @@ ${dto.colorPalette}`;
       const submitData = await submitResponse.json();
       const jobId = submitData.id;
 
-      console.log(`[BFL API] Job Submitted Successfully! Job ID: ${jobId}`);
-      console.log(`[BFL API] Polling for result...`);
-
-      // 2. Poll for the result
+      // Poll for result
       let generatedImageUrl = null;
       let attempt = 0;
-      const maxAttempts = 30; // Max 1 minute polling (2 seconds x 30)
+      const maxAttempts = 60; // longer polling
 
       while (attempt < maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, 2000)); // wait 2 seconds
+        await new Promise((resolve) => setTimeout(resolve, 2000));
         attempt++;
 
         const pollResponse = await fetch(`https://api.bfl.ml/v1/get_result?id=${jobId}`, {
           method: 'GET',
-          headers: {
-            'X-Key': apiKey,
-          },
+          headers: { 'X-Key': apiKey },
         });
 
-        if (!pollResponse.ok) {
-          console.log(`[BFL API] Polling error: ${pollResponse.status}`);
-          continue;
-        }
+        if (!pollResponse.ok) continue;
 
         const pollData = await pollResponse.json();
         const status = pollData.status;
-
         if (status === 'Ready') {
           generatedImageUrl = pollData.result.sample;
-          console.log(`[BFL API] Job Completed! Output URL retrieved.`);
           break;
         } else if (status === 'Failed' || status === 'Error') {
           throw new Error(`BFL Job Failed with status: ${status}`);
         }
-
-        // If status is "Pending" or "In Progress", continue looping
       }
 
-      if (!generatedImageUrl) {
-        throw new Error('BFL API Polling timed out. Image generation took too long.');
-      }
+      if (!generatedImageUrl) throw new Error('BFL API Polling timed out');
 
-      console.log(`=========================\n`);
+      // Download generated image
+      const genResp = await fetch(generatedImageUrl);
+      if (!genResp.ok) throw new Error('Failed to download generated image');
+      const genBuffer = Buffer.from(await genResp.arrayBuffer());
+
+      // Upload to S3 interior-app/ folder
+      const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genResp.headers.get('content-type') || 'image/jpeg');
 
       return {
-        imageUrl: generatedImageUrl,
+        imageUrl: upload.publicUrl,
         promptUsed: prompt,
+        s3Key: upload.s3Key,
       };
     } catch (error) {
       console.error('Flux Pro generation failed:', error?.message ?? error);

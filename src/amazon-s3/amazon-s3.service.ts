@@ -40,8 +40,8 @@ export class AmazonS3Service {
     // Append a UUID to the original filename so uploads never overwrite each other
     const fileExtension = fileName.includes('.') ? fileName.split('.').pop() : '';
     const uniqueKey = fileExtension
-      ? `uploads/${uuidv4()}.${fileExtension}`
-      : `uploads/${uuidv4()}`;
+      ? `interior-app/${uuidv4()}.${fileExtension}`
+      : `interior-app/${uuidv4()}`;
 
     const command = new PutObjectCommand({
       Bucket: this.bucketName,
@@ -59,6 +59,31 @@ export class AmazonS3Service {
     } catch (error) {
       console.error('[AmazonS3Service] Failed to generate pre-signed URL:', error?.message ?? error);
       throw new InternalServerErrorException('Failed to generate S3 pre-signed URL.');
+    }
+  }
+  
+  async uploadBuffer(
+    buffer: Buffer,
+    fileExtension = 'jpg',
+    contentType = 'image/jpeg',
+  ): Promise<{ publicUrl: string; s3Key: string }> {
+    const uniqueKey = `interior-app/${uuidv4()}.${fileExtension}`;
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: uniqueKey,
+      Body: buffer,
+      ContentType: contentType,
+      ACL: 'public-read',
+    } as any);
+
+    try {
+      await this.s3Client.send(command);
+      const publicUrl = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${uniqueKey}`;
+      return { publicUrl, s3Key: uniqueKey };
+    } catch (error) {
+      console.error('[AmazonS3Service] Failed to upload buffer to S3:', error?.message ?? error);
+      throw new InternalServerErrorException('Failed to upload file to S3.');
     }
   }
 }
