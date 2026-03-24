@@ -27,21 +27,24 @@ export class AmazonS3Service {
    * Generates a pre-signed S3 PUT URL that allows the client to upload
    * a file directly to S3 without going through the server.
    *
-   * @param fileName  - Original file name from the client (e.g. "room.jpg")
    * @param fileType  - MIME type of the file (e.g. "image/jpeg")
    * @param expiresIn - URL validity in seconds (default: 300 = 5 min)
    * @returns { uploadUrl, publicUrl, s3Key }
    */
-  async generatePresignedUploadUrl(
-    fileName: string,
-    fileType: string,
-    expiresIn = 300,
-  ): Promise<{ uploadUrl: string; publicUrl: string; s3Key: string }> {
-    // Append a UUID to the original filename so uploads never overwrite each other
-    const fileExtension = fileName.includes('.') ? fileName.split('.').pop() : '';
-    const uniqueKey = fileExtension
-      ? `interior-app/${uuidv4()}.${fileExtension}`
-      : `interior-app/${uuidv4()}`;
+  async generatePresignedUploadUrl(fileType: string, expiresIn = 300): Promise<{ uploadUrl: string; publicUrl: string; s3Key: string }> {
+    // Determine file extension from MIME type
+    let fileExtension = '';
+    if (fileType) {
+      const mime = fileType.split('/')[1];
+      if (mime) {
+        if (mime.includes('jpeg')) fileExtension = 'jpg';
+        else if (mime.includes('png')) fileExtension = 'png';
+        else if (mime.includes('webp')) fileExtension = 'webp';
+        else fileExtension = mime.replace(/[^a-z0-9]/gi, '') || 'bin';
+      }
+    }
+
+    const uniqueKey = fileExtension ? `interior-app/${uuidv4()}.${fileExtension}` : `interior-app/${uuidv4()}`;
 
     const command = new PutObjectCommand({
       Bucket: this.bucketName,
