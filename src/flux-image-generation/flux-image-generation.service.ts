@@ -21,6 +21,8 @@ export class FluxImageGenerationService {
     }
   }
 
+  
+
   private buildFetchDispatcher(): ProxyAgent | undefined {
     const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
     if (proxyUrl) {

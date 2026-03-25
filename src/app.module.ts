@@ -8,6 +8,7 @@ import { DesignModule } from './design/design.module';
 import { OpenaiPromptGenerationModule } from './openai-prompt-generation/openai-prompt-generation.module';
 import { FluxImageGenerationModule } from './flux-image-generation/flux-image-generation.module';
 import { AmazonS3Module } from './amazon-s3/amazon-s3.module';
+import { DesignHistoryModule } from './design-history/design-history.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AmazonS3Module } from './amazon-s3/amazon-s3.module';
     DesignModule,
     OpenaiPromptGenerationModule,
     FluxImageGenerationModule,
+    DesignHistoryModule,
     AmazonS3Module,
   ],
   controllers: [AppController],
