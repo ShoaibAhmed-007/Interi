@@ -22,8 +22,10 @@ export class DesignHistoryController {
         properties: {
           id: { type: 'string' },
           createdAt: { type: 'string', format: 'date-time' },
-          originalImageUrl: { type: 'string', nullable: true },
-          resultImageUrl: { type: 'string', nullable: true },
+          originalImageKey: { type: 'string', nullable: true, description: 'Stored S3 key or original URL' },
+          originalImageUrl: { type: 'string', nullable: true, description: 'Presigned URL or external URL' },
+          resultImageKey: { type: 'string', nullable: true, description: 'Stored S3 key or original URL' },
+          resultImageUrl: { type: 'string', nullable: true, description: 'Presigned URL or external URL' },
         },
       },
     },

@@ -14,20 +14,23 @@ export class DesignHistoryService {
 
     const mapped = await Promise.all(
       designs.map(async (d) => {
-        let originalUrl = d.originalImageUrl || null;
-        let resultUrl = d.resultImageUrl || null;
+        const originalKeyOrUrl = d.originalImageUrl || null;
+        const resultKeyOrUrl = d.resultImageUrl || null;
+
+        let originalUrl: string | null = originalKeyOrUrl;
+        let resultUrl: string | null = resultKeyOrUrl;
 
         try {
-          if (originalUrl && !originalUrl.startsWith('http')) {
-            originalUrl = await this.s3.generatePresignedDownloadUrl(originalUrl);
+          if (originalKeyOrUrl && !originalKeyOrUrl.startsWith('http')) {
+            originalUrl = await this.s3.generatePresignedDownloadUrl(originalKeyOrUrl);
           }
         } catch (e) {
           console.warn('[DesignHistory] Failed to generate presigned URL for original image', { designId: d.id, err: e?.message ?? e });
         }
 
         try {
-          if (resultUrl && !resultUrl.startsWith('http')) {
-            resultUrl = await this.s3.generatePresignedDownloadUrl(resultUrl);
+          if (resultKeyOrUrl && !resultKeyOrUrl.startsWith('http')) {
+            resultUrl = await this.s3.generatePresignedDownloadUrl(resultKeyOrUrl);
           }
         } catch (e) {
           console.warn('[DesignHistory] Failed to generate presigned URL for result image', { designId: d.id, err: e?.message ?? e });
@@ -36,7 +39,9 @@ export class DesignHistoryService {
         return {
           id: d.id,
           createdAt: d.createdAt,
+          originalImageKey: originalKeyOrUrl,
           originalImageUrl: originalUrl,
+          resultImageKey: resultKeyOrUrl,
           resultImageUrl: resultUrl,
         };
       }),
