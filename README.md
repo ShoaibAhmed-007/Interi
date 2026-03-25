@@ -1,10 +1,10 @@
 # my-nest-project
 
-NestJS REST API with JWT authentication (access + refresh tokens), Prisma ORM (SQLite), and optional Google/Apple OAuth sign-in.
+NestJS REST API with JWT authentication (access + refresh tokens), Prisma ORM (PostgreSQL), and optional Google/Apple OAuth sign-in.
 
 ## Description
 
-NestJS REST API with JWT authentication (access + refresh tokens), Prisma ORM (SQLite), and optional Google/Apple OAuth sign-in.
+NestJS REST API with JWT authentication (access + refresh tokens), Prisma ORM (PostgreSQL), and optional Google/Apple OAuth sign-in.
 
 ---
 
@@ -32,8 +32,8 @@ npm install --legacy-peer-deps
 Create a `.env` file in the project root:
 
 ```env
-# SQLite database (file path is relative to the prisma/ directory)
-DATABASE_URL="file:./dev.db"
+# PostgreSQL connection string (adjust user/password/host/db as needed)
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mydb?schema=public"
 
 # JWT secrets — use long, random strings in production
 JWT_SECRET=replace_with_a_long_random_secret
@@ -64,7 +64,7 @@ This reads `prisma/schema.prisma` and generates the typed client used by the app
 npx prisma migrate dev --name init
 ```
 
-This creates the SQLite database file (`prisma/dev.db`) and runs all pending migrations.
+This connects to the PostgreSQL database specified by `DATABASE_URL` and runs all pending migrations.
 Run this command again any time you change `prisma/schema.prisma`.
 
 ---
@@ -109,7 +109,7 @@ Opens a browser-based GUI at **http://localhost:5555** to browse and edit databa
 **Token response:**
 # my-nest-project
 
-NestJS REST API with JWT authentication (access + refresh tokens), Prisma ORM (SQLite), and optional Google/Apple OAuth sign-in.
+NestJS REST API with JWT authentication (access + refresh tokens), Prisma ORM (PostgreSQL), and optional Google/Apple OAuth sign-in.
 
 ## Documentation
 
@@ -137,8 +137,8 @@ If you run into peer-dependency errors, use `--legacy-peer-deps` as shown above.
 Create a `.env` file at the repository root with these minimum values:
 
 ```env
-# SQLite database (relative to prisma/)
-DATABASE_URL="file:./prisma/dev.db"
+# PostgreSQL connection string (relative example)
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mydb?schema=public"
 
 # Application port
 PORT=3001
@@ -162,7 +162,7 @@ npx prisma migrate dev --name init
 # optional: npm run prisma:seed
 ```
 
-This will create the SQLite database file at `prisma/dev.db` and generate the Prisma client.
+This will apply migrations against the PostgreSQL database defined in `DATABASE_URL` and generate the Prisma client.
 
 ### 4. Start development server
 

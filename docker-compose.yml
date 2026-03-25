@@ -10,7 +10,7 @@ services:
       - .env
     environment:
       - PORT=3001
-      - DATABASE_URL=file:./prisma/dev.db
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydb?schema=public
     volumes:
       - ./prisma:/app/prisma
     depends_on:
@@ -26,5 +26,18 @@ services:
     ports:
       - "5555:5555"
     environment:
-      - DATABASE_URL=file:./prisma/dev.db
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydb?schema=public
     command: sh -c "npm ci --legacy-peer-deps >/dev/null 2>&1 || true && npx prisma migrate deploy || true && npx prisma studio --port 5555 --hostname 0.0.0.0"
+
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=mydb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:
