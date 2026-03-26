@@ -159,11 +159,11 @@ You need to change the ${dto.category}.
 Make the style ${dto.style}.
 The color palette should be ${dto.colorPalette}.`;
             const bflBase = process.env.BFL_API_ENDPOINT || 'https://api.bfl.ai';
-            const endpoint = `${bflBase.replace(/\/$/, '')}/v1/flux-kontext-pro`;
+            const endpoint = `${bflBase.replace(/\/$/, '')}/v1/flux-2-pro-preview`;
             const maskedApiKey = apiKey ? `${apiKey.slice(0, 8)}...` : null;
             const imageBase64 = originalBuffer.toString('base64');
             const estimatedPriceCents = 5;
-            console.info('[FluxImageGeneration] Submitting job to Flux Kontext Pro:', {
+            console.info('[FluxImageGeneration] Submitting job to FLUX.2 Pro:', {
                 designId,
                 endpoint,
                 apiKeySet: !!apiKey,
@@ -181,10 +181,8 @@ The color palette should be ${dto.colorPalette}.`;
                 body: JSON.stringify({
                     prompt,
                     input_image: `data:${originalContentType};base64,${imageBase64}`,
-                    prompt_upsampling: false,
                     output_format: 'jpeg',
                     safety_tolerance: 2,
-                    aspect_ratio: '1:1',
                 }),
             }, 'submitJob', 300000, 3);
             if (!submitResponse.ok) {

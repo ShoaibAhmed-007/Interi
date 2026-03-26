@@ -9,6 +9,7 @@ import { OpenaiPromptGenerationModule } from './openai-prompt-generation/openai-
 import { FluxImageGenerationModule } from './flux-image-generation/flux-image-generation.module';
 import { AmazonS3Module } from './amazon-s3/amazon-s3.module';
 import { DesignHistoryModule } from './design-history/design-history.module';
+import { PublicTestingUploadModule } from './public-testing-upload/public-testing-upload.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { DesignHistoryModule } from './design-history/design-history.module';
     FluxImageGenerationModule,
     DesignHistoryModule,
     AmazonS3Module,
+    PublicTestingUploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

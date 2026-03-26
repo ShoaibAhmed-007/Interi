@@ -18,6 +18,7 @@ const openai_prompt_generation_module_1 = require("./openai-prompt-generation/op
 const flux_image_generation_module_1 = require("./flux-image-generation/flux-image-generation.module");
 const amazon_s3_module_1 = require("./amazon-s3/amazon-s3.module");
 const design_history_module_1 = require("./design-history/design-history.module");
+const public_testing_upload_module_1 = require("./public-testing-upload/public-testing-upload.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -32,6 +33,7 @@ exports.AppModule = AppModule = __decorate([
             flux_image_generation_module_1.FluxImageGenerationModule,
             design_history_module_1.DesignHistoryModule,
             amazon_s3_module_1.AmazonS3Module,
+            public_testing_upload_module_1.PublicTestingUploadModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],
