@@ -6,6 +6,8 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Patch,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -16,6 +18,9 @@ import {
   AppleOAuthDto,
 } from './dto/auth.dto';
 import { GetUser } from './decorator/get-user.decorator';
+import { AmazonS3Service } from '../amazon-s3/amazon-s3.service';
+import { UserDto } from './dto/auth.dto';
+import { UpdateNameDto, ChangePasswordDto, PresignedUploadResponse, UpdateEmailDto } from './dto/auth.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -27,7 +32,7 @@ import {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService, private readonly s3: AmazonS3Service) {}
 
   @Get('health')
   getHealth(): object {
@@ -38,18 +43,68 @@ export class AuthController {
   @Get('/me')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get current authenticated user details' })
-  @ApiResponse({ status: 200, description: 'Returns name, email, createdAt, freeTrialsLeft and subscribed' })
-  getMe(
+  @ApiResponse({ status: 200, description: 'Returns user details including profile picture info', type: UserDto })
+  async getMe(
     @GetUser()
-    user: { name: string; email: string; createdAt: Date; freeTrialsLeft: number; subscribed: boolean },
+    user: any,
   ) {
+    let profilePublicUrl: string | null = null;
+    if (user.profilePicture) {
+      try {
+        profilePublicUrl = await this.authService.generateProfilePictureDownloadUrl(user.profilePicture);
+      } catch (e) {
+        profilePublicUrl = null;
+      }
+    }
+
     return {
       name: user.name,
       email: user.email,
       createdAt: user.createdAt,
       freeTrialsLeft: user.freeTrialsLeft,
       subscribed: user.subscribed,
+      profilePicture: user.profilePicture || null,
+      profilePicturePublicUrl: profilePublicUrl,
     };
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('/profile/name')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Update authenticated user name' })
+  @ApiBody({ type: UpdateNameDto })
+  async updateName(@GetUser('id') userId: string, @Body() dto: UpdateNameDto) {
+    const updated = await this.authService.updateName(userId, dto.name);
+    return { name: updated.name };
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('/profile/email')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Update authenticated user email' })
+  @ApiBody({ type: UpdateEmailDto })
+  async updateEmail(@GetUser('id') userId: string, @Body() dto: UpdateEmailDto) {
+    const updated = await this.authService.updateEmail(userId, dto.email);
+    return { email: updated.email };
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('/profile/password')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Change password for authenticated user' })
+  @ApiBody({ type: ChangePasswordDto })
+  async changePassword(@GetUser('id') userId: string, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(userId, dto.previousPassword, dto.newPassword);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('/profile/picture')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Get S3 key and pre-signed upload URL for profile picture' })
+  @ApiResponse({ status: 200, type: PresignedUploadResponse })
+  async getPresignedProfileUploadUrl(@GetUser('id') userId: string, @Query('fileType') fileType?: string) {
+    const res = await this.authService.getOrCreateProfilePicturePresignedUpload(userId, fileType || 'image/jpeg');
+    return { s3Key: res.s3Key, uploadUrl: res.uploadUrl, publicUrl: res.publicUrl };
   }
 
   @Post('/signup')

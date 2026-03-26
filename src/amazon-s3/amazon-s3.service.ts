@@ -127,4 +127,20 @@ export class AmazonS3Service {
       throw new InternalServerErrorException('Failed to generate presigned download URL.');
     }
   }
+
+  /**
+   * Generate a presigned PUT (upload) URL for an existing key.
+   * Useful when you want clients to re-upload or replace an existing object.
+   */
+  async generatePresignedUploadUrlForKey(s3Key: string, fileType: string, expiresIn = 300): Promise<{ uploadUrl: string; publicUrl: string; s3Key: string }> {
+    const command = new PutObjectCommand({ Bucket: this.bucketName, Key: s3Key, ContentType: fileType });
+    try {
+      const uploadUrl = await getSignedUrl(this.s3Client, command, { expiresIn });
+      const publicUrl = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${s3Key}`;
+      return { uploadUrl, publicUrl, s3Key };
+    } catch (error) {
+      console.error('[AmazonS3Service] Failed to generate presigned upload URL for key:', error?.message ?? error);
+      throw new InternalServerErrorException('Failed to generate presigned upload URL for existing key.');
+    }
+  }
 }

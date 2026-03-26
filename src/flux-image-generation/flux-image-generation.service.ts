@@ -342,7 +342,7 @@ The color palette should be ${dto.colorPalette}.`;
     if (user.freeTrialsLeft && user.freeTrialsLeft > 0) {
       await this.prisma.user.update({
         where: { id: userId },
-        data: { freeTrialsLeft: { decrement: 1 } as unknown as Prisma.IntFieldUpdateOperationsInput },
+        data: { freeTrialsLeft: { decrement: 1 } },
       });
       return;
     }
@@ -363,7 +363,7 @@ The color palette should be ${dto.colorPalette}.`;
       if (usable) {
         await this.prisma.subscription.update({
           where: { id: usable.id },
-          data: { usedCredits: { increment: 1 } as unknown as Prisma.IntFieldUpdateOperationsInput },
+          data: { usedCredits: { increment: 1 } },
         });
         return;
       }

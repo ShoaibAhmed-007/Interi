@@ -5,9 +5,11 @@ import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategy/jwt.strategy';
 import { JwtRefreshStrategy } from './strategy/jwt-refresh.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AmazonS3Module } from '../amazon-s3/amazon-s3.module';
 
 @Module({
   imports: [
+    AmazonS3Module,
     ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
