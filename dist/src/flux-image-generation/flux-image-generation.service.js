@@ -237,6 +237,15 @@ The color palette should be ${dto.colorPalette}.`;
             const genContentType = genResp.headers.get('content-type') || 'image/jpeg';
             const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
             await this.prisma.design.update({ where: { id: designId }, data: { resultImageUrl: upload.s3Key } });
+            const prismaAny = this.prisma;
+            await prismaAny.designHistory.create({
+                data: {
+                    userId: design.userId,
+                    designId: design.id,
+                    originalImageKey: design.originalImageUrl,
+                    resultImageKey: upload.s3Key,
+                },
+            });
             const presigned = await this.s3.generatePresignedDownloadUrl(upload.s3Key);
             return {
                 imageUrl: upload.publicUrl,

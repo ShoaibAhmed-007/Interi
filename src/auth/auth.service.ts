@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import { SignInDto, SignUpDto } from './dto/auth.dto';
 import * as argon from 'argon2';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AmazonS3Service } from '../amazon-s3/amazon-s3.service';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
@@ -51,7 +51,7 @@ export class AuthService {
       return tokens;
     } catch (error) {
       console.error('Signup error:', error);
-      if (error instanceof PrismaClientKnownRequestError) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
         console.error('Prisma error code:', error.code);
         console.error('Prisma error message:', error.message);
         if (error.code === 'P2002') {
@@ -181,7 +181,7 @@ export class AuthService {
       return userWithoutSensitive;
     } catch (error) {
       console.error('updateEmail error:', error);
-      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new BadRequestException('Email already exists');
       }
       throw new InternalServerErrorException('Failed to update email');

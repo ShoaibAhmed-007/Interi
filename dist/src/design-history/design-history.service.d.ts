@@ -6,6 +6,8 @@ export declare class DesignHistoryService {
     constructor(prisma: PrismaService, s3: AmazonS3Service);
     getUserDesignHistory(userId: string): Promise<{
         id: string;
+        userId: string;
+        designId: string;
         createdAt: Date;
         originalImageKey: string | null;
         originalImageUrl: string | null;

@@ -6,6 +6,8 @@ export declare class DesignHistoryController {
         success: boolean;
         data: {
             id: string;
+            userId: string;
+            designId: string;
             createdAt: Date;
             originalImageKey: string | null;
             originalImageUrl: string | null;

@@ -48,9 +48,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
 const argon = __importStar(require("argon2"));
+const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../prisma/prisma.service");
 const amazon_s3_service_1 = require("../amazon-s3/amazon-s3.service");
-const library_1 = require("@prisma/client/runtime/library");
 const jwt_1 = require("@nestjs/jwt");
 const config_1 = require("@nestjs/config");
 const google_auth_library_1 = require("google-auth-library");
@@ -90,7 +90,7 @@ let AuthService = class AuthService {
         }
         catch (error) {
             console.error('Signup error:', error);
-            if (error instanceof library_1.PrismaClientKnownRequestError) {
+            if (error instanceof client_1.Prisma.PrismaClientKnownRequestError) {
                 console.error('Prisma error code:', error.code);
                 console.error('Prisma error message:', error.message);
                 if (error.code === 'P2002') {
@@ -207,7 +207,7 @@ let AuthService = class AuthService {
         }
         catch (error) {
             console.error('updateEmail error:', error);
-            if (error instanceof library_1.PrismaClientKnownRequestError && error.code === 'P2002') {
+            if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
                 throw new common_1.BadRequestException('Email already exists');
             }
             throw new common_1.InternalServerErrorException('Failed to update email');

@@ -303,6 +303,17 @@ The color palette should be ${dto.colorPalette}.`;
       // Persist the result S3 key in the Design.resultImageUrl field
       await this.prisma.design.update({ where: { id: designId }, data: { resultImageUrl: upload.s3Key } });
 
+      // Keep a generation event history row for audit/timeline use.
+      const prismaAny = this.prisma as any;
+      await prismaAny.designHistory.create({
+        data: {
+          userId: design.userId,
+          designId: design.id,
+          originalImageKey: design.originalImageUrl,
+          resultImageKey: upload.s3Key,
+        },
+      });
+
       const presigned = await this.s3.generatePresignedDownloadUrl(upload.s3Key);
 
       return {

@@ -21,13 +21,21 @@ let DesignHistoryService = class DesignHistoryService {
         this.s3 = s3;
     }
     async getUserDesignHistory(userId) {
-        const designs = await this.prisma.design.findMany({
-            where: { userId },
-            orderBy: { createdAt: 'desc' },
+        if (!userId) {
+            throw new common_1.BadRequestException('Authenticated user id is required');
+        }
+        const historyRows = await this.prisma.designHistory.findMany({
+            where: {
+                userId,
+                design: {
+                    userId,
+                },
+            },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         });
-        const mapped = await Promise.all(designs.map(async (d) => {
-            const originalKeyOrUrl = d.originalImageUrl || null;
-            const resultKeyOrUrl = d.resultImageUrl || null;
+        const mapped = await Promise.all(historyRows.map(async (h) => {
+            const originalKeyOrUrl = h.originalImageKey || null;
+            const resultKeyOrUrl = h.resultImageKey || null;
             let originalUrl = originalKeyOrUrl;
             let resultUrl = resultKeyOrUrl;
             try {
@@ -36,7 +44,7 @@ let DesignHistoryService = class DesignHistoryService {
                 }
             }
             catch (e) {
-                console.warn('[DesignHistory] Failed to generate presigned URL for original image', { designId: d.id, err: e?.message ?? e });
+                console.warn('[DesignHistory] Failed to generate presigned URL for original image', { historyId: h.id, designId: h.designId, err: e?.message ?? e });
             }
             try {
                 if (resultKeyOrUrl && !resultKeyOrUrl.startsWith('http')) {
@@ -44,11 +52,13 @@ let DesignHistoryService = class DesignHistoryService {
                 }
             }
             catch (e) {
-                console.warn('[DesignHistory] Failed to generate presigned URL for result image', { designId: d.id, err: e?.message ?? e });
+                console.warn('[DesignHistory] Failed to generate presigned URL for result image', { historyId: h.id, designId: h.designId, err: e?.message ?? e });
             }
             return {
-                id: d.id,
-                createdAt: d.createdAt,
+                id: h.id,
+                userId: h.userId,
+                designId: h.designId,
+                createdAt: h.createdAt,
                 originalImageKey: originalKeyOrUrl,
                 originalImageUrl: originalUrl,
                 resultImageKey: resultKeyOrUrl,
