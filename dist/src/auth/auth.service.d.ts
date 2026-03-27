@@ -10,22 +10,73 @@ export declare class AuthService {
     private s3;
     constructor(prisma: PrismaService, jwt: JwtService, config: ConfigService, s3: AmazonS3Service);
     getHealthStatus(): object;
-    signup(signupDto: SignUpDto): unknown;
-    signin(singinDto: SignInDto): unknown;
-    signTokens(userId: string, email: string, name: string): unknown;
-    updateRefreshToken(userId: string, rt: string): any;
-    refreshTokens(userId: string, rt: string): unknown;
-    logout(userId: string): any;
-    updateName(userId: string, name: string): unknown;
-    changePassword(userId: string, previousPassword: string, newPassword: string): unknown;
-    updateEmail(userId: string, email: string): unknown;
-    getOrCreateProfilePicturePresignedUpload(userId: string, fileType?: string): unknown;
+    signup(signupDto: SignUpDto): Promise<{
+        access_token: string;
+        refresh_token: string;
+    }>;
+    signin(singinDto: SignInDto): Promise<{
+        access_token: string;
+        refresh_token: string;
+    }>;
+    signTokens(userId: string, email: string, name: string): Promise<{
+        access_token: string;
+        refresh_token: string;
+    }>;
+    updateRefreshToken(userId: string, rt: string): Promise<void>;
+    refreshTokens(userId: string, rt: string): Promise<{
+        access_token: string;
+        refresh_token: string;
+    }>;
+    logout(userId: string): Promise<void>;
+    updateName(userId: string, name: string): Promise<{
+        name: string | null;
+        email: string;
+        profilePicture: string | null;
+        createdAt: Date;
+        freeTrialsLeft: number;
+        subscribed: boolean;
+        id: string;
+        googleId: string | null;
+        appleId: string | null;
+        updatedAt: Date;
+    }>;
+    changePassword(userId: string, previousPassword: string, newPassword: string): Promise<{
+        success: boolean;
+    }>;
+    updateEmail(userId: string, email: string): Promise<{
+        name: string | null;
+        email: string;
+        profilePicture: string | null;
+        createdAt: Date;
+        freeTrialsLeft: number;
+        subscribed: boolean;
+        id: string;
+        googleId: string | null;
+        appleId: string | null;
+        updatedAt: Date;
+    }>;
+    getOrCreateProfilePicturePresignedUpload(userId: string, fileType?: string): Promise<{
+        s3Key: string;
+        uploadUrl: string;
+        publicUrl: string;
+    }>;
     oauthLogin(provider: 'google' | 'apple', profile: {
         id: string;
         email: string;
         name: string;
-    }): unknown;
-    verifyGoogleToken(idToken: string): unknown;
-    verifyAppleToken(identityToken: string, fullName?: string): unknown;
+    }): Promise<{
+        access_token: string;
+        refresh_token: string;
+    }>;
+    verifyGoogleToken(idToken: string): Promise<{
+        id: string;
+        email: string;
+        name: string;
+    }>;
+    verifyAppleToken(identityToken: string, fullName?: string): Promise<{
+        id: string;
+        email: string;
+        name: string;
+    }>;
     generateProfilePictureDownloadUrl(s3Key: string, expiresIn?: number): Promise<string>;
 }

@@ -4,5 +4,14 @@ export declare class DesignHistoryService {
     private prisma;
     private s3;
     constructor(prisma: PrismaService, s3: AmazonS3Service);
-    getUserDesignHistory(userId: string): unknown;
+    getUserDesignHistory(userId: string): Promise<{
+        id: string;
+        userId: string;
+        designId: string;
+        createdAt: Date;
+        originalImageKey: string | null;
+        originalImageUrl: string | null;
+        resultImageKey: string | null;
+        resultImageUrl: string | null;
+    }[]>;
 }

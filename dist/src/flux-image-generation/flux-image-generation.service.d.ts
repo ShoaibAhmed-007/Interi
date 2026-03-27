@@ -7,6 +7,11 @@ export declare class FluxImageGenerationService {
     private testDNS;
     private buildFetchDispatcher;
     private safeFetch;
-    generateImageForDesign(designId: string): unknown;
-    checkForCredits(userId: string): any;
+    generateImageForDesign(designId: string): Promise<{
+        imageUrl: string;
+        presignedUrl: string;
+        promptUsed: string;
+        s3Key: string;
+    }>;
+    checkForCredits(userId: string): Promise<void>;
 }
