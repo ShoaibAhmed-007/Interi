@@ -1,7 +1,7 @@
 import { OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client/default';
 export declare class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
     constructor();
-    onModuleInit(): Promise<void>;
-    onModuleDestroy(): Promise<void>;
+    onModuleInit(): any;
+    onModuleDestroy(): any;
 }

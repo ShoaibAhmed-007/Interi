@@ -44,11 +44,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
+var _a, _b;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
 const argon = __importStar(require("argon2"));
-const client_1 = require("@prisma/client");
+const default_1 = require("@prisma/client/default");
 const prisma_service_1 = require("../prisma/prisma.service");
 const amazon_s3_service_1 = require("../amazon-s3/amazon-s3.service");
 const jwt_1 = require("@nestjs/jwt");
@@ -90,7 +91,7 @@ let AuthService = class AuthService {
         }
         catch (error) {
             console.error('Signup error:', error);
-            if (error instanceof client_1.Prisma.PrismaClientKnownRequestError) {
+            if (error instanceof default_1.Prisma.PrismaClientKnownRequestError) {
                 console.error('Prisma error code:', error.code);
                 console.error('Prisma error message:', error.message);
                 if (error.code === 'P2002') {
@@ -207,7 +208,7 @@ let AuthService = class AuthService {
         }
         catch (error) {
             console.error('updateEmail error:', error);
-            if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            if (error instanceof default_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
                 throw new common_1.BadRequestException('Email already exists');
             }
             throw new common_1.InternalServerErrorException('Failed to update email');
@@ -291,9 +292,6 @@ let AuthService = class AuthService {
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        jwt_1.JwtService,
-        config_1.ConfigService,
-        amazon_s3_service_1.AmazonS3Service])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, typeof (_a = typeof jwt_1.JwtService !== "undefined" && jwt_1.JwtService) === "function" ? _a : Object, typeof (_b = typeof config_1.ConfigService !== "undefined" && config_1.ConfigService) === "function" ? _b : Object, amazon_s3_service_1.AmazonS3Service])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

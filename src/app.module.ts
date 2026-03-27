@@ -10,6 +10,7 @@ import { FluxImageGenerationModule } from './flux-image-generation/flux-image-ge
 import { AmazonS3Module } from './amazon-s3/amazon-s3.module';
 import { DesignHistoryModule } from './design-history/design-history.module';
 import { PublicTestingUploadModule } from './public-testing-upload/public-testing-upload.module';
+import { FavouritesModule } from './favourites/favourites.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PublicTestingUploadModule } from './public-testing-upload/public-testin
     DesignHistoryModule,
     AmazonS3Module,
     PublicTestingUploadModule,
+    FavouritesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

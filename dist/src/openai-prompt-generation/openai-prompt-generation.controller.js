@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var _a, _b, _c, _d, _e, _f, _g, _h;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OpenaiPromptGenerationController = void 0;
 const common_1 = require("@nestjs/common");
@@ -136,7 +137,7 @@ __decorate([
     __param(0, (0, common_1.Body)('designId')),
     __param(1, (0, common_1.UploadedFile)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, typeof (_b = typeof Express !== "undefined" && (_a = Express.Multer) !== void 0 && _a.File) === "function" ? _b : Object]),
     __metadata("design:returntype", Promise)
 ], OpenaiPromptGenerationController.prototype, "publicGeneratePrompt", null);
 __decorate([
@@ -163,7 +164,7 @@ __decorate([
     __param(0, (0, common_1.Body)('designId')),
     __param(1, (0, common_1.UploadedFile)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, typeof (_d = typeof Express !== "undefined" && (_c = Express.Multer) !== void 0 && _c.File) === "function" ? _d : Object]),
     __metadata("design:returntype", Promise)
 ], OpenaiPromptGenerationController.prototype, "publicGenerateImage", null);
 __decorate([
@@ -196,7 +197,7 @@ __decorate([
     __param(3, (0, common_1.Body)('category')),
     __param(4, (0, common_1.UploadedFile)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, Object]),
+    __metadata("design:paramtypes", [String, String, String, String, typeof (_f = typeof Express !== "undefined" && (_e = Express.Multer) !== void 0 && _e.File) === "function" ? _f : Object]),
     __metadata("design:returntype", Promise)
 ], OpenaiPromptGenerationController.prototype, "publicGenerateImageDto", null);
 __decorate([
@@ -225,7 +226,7 @@ __decorate([
     __param(1, (0, common_1.Body)('prompt')),
     __param(2, (0, common_1.UploadedFile)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:paramtypes", [String, String, typeof (_h = typeof Express !== "undefined" && (_g = Express.Multer) !== void 0 && _g.File) === "function" ? _h : Object]),
     __metadata("design:returntype", Promise)
 ], OpenaiPromptGenerationController.prototype, "publicAdvancedEdit", null);
 exports.OpenaiPromptGenerationController = OpenaiPromptGenerationController = __decorate([

@@ -28,7 +28,8 @@ model User {
   // Subscriptions for the user
   subscriptions Subscription[]
 
-  designs   Design[]
+  designs    Design[]
+  favourites Favourite[]
   designHistories DesignHistory[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -53,6 +54,7 @@ model Design {
   seedUsed BigInt?
 
   designHistories DesignHistory[]
+  favourites      Favourite[]
 
   createdAt DateTime @default(now())
 }
@@ -86,4 +88,16 @@ model Subscription {
   endDate   DateTime
 
   createdAt DateTime @default(now())
+}
+
+model Favourite {
+  id       String @id @default(uuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  designId String
+  design   Design @relation(fields: [designId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, designId])
+  @@index([userId])
 }

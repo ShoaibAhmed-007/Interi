@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PresignedUploadResponse = exports.UpdateEmailDto = exports.ChangePasswordDto = exports.UpdateNameDto = exports.UserDto = exports.AppleOAuthDto = exports.GoogleOAuthDto = exports.SignInDto = exports.SignUpDto = void 0;
 const class_validator_1 = require("class-validator");
@@ -112,7 +113,7 @@ __decorate([
 ], UserDto.prototype, "email", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ example: '2026-03-25T12:00:00.000Z' }),
-    __metadata("design:type", Date)
+    __metadata("design:type", typeof (_a = typeof Date !== "undefined" && Date) === "function" ? _a : Object)
 ], UserDto.prototype, "createdAt", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ example: 3 }),
