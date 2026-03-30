@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiBody, ApiResponse, ApiBearerAuth } from '@nes
 import { GetUser } from '../auth/decorator/get-user.decorator';
 import { FluxImageGenerationService } from './flux-image-generation.service';
 import { ApplyStyleDto } from './dto/apply-style.dto';
+import { GenerateFromS3Dto } from './dto/generate-from-s3.dto';
 
 @ApiTags('flux-image-generation')
 @Controller('flux-image-generation')
@@ -76,6 +77,34 @@ export class FluxImageGenerationController {
       dto.targetKey,
       dto.location,
     );
+
+    return { success: true, ...result };
+  }
+
+  @Post('generate-from-s3')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Generate an AI image from an S3 key using a custom prompt',
+    description:
+      'Takes an S3 key and a prompt string, checks user credits, submits the image to Flux, uploads the result to S3, deducts a credit, and returns URLs. Requires JWT.',
+  })
+  @ApiBody({ type: GenerateFromS3Dto })
+  @ApiResponse({ status: 200, description: 'Image generated successfully via Flux' })
+  @ApiResponse({ status: 400, description: 'Bad request or not enough credits' })
+  @ApiResponse({ status: 401, description: 'Unauthorized — invalid or missing JWT' })
+  async generateFromS3(
+    @Body() dto: GenerateFromS3Dto,
+    @GetUser('id') userId: string,
+  ) {
+    if (!dto || !dto.s3Key || !dto.prompt) {
+      throw new BadRequestException('s3Key and prompt are required');
+    }
+
+    // Check availability of credits before starting the FLUX job
+    await this.fluxImageGenerationService.checkForCredits(userId);
+
+    const result = await this.fluxImageGenerationService.generateFromS3Key(userId, dto.s3Key, dto.prompt);
 
     return { success: true, ...result };
   }

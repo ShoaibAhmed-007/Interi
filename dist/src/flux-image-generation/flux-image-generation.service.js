@@ -121,6 +121,7 @@ let FluxImageGenerationService = class FluxImageGenerationService {
         if (!design) {
             throw new common_1.NotFoundException('Design not found');
         }
+        await this.checkForCredits(design.userId);
         const dto = {
             category: design.category,
             location: design.location,
@@ -247,6 +248,7 @@ The color palette should be ${dto.colorPalette}.`;
                 },
             });
             const presigned = await this.s3.generatePresignedDownloadUrl(upload.s3Key);
+            await this.deductCredits(design.userId);
             return {
                 imageUrl: upload.publicUrl,
                 presignedUrl: presigned,
@@ -272,10 +274,6 @@ The color palette should be ${dto.colorPalette}.`;
         if (!user)
             throw new common_1.BadRequestException('User not found');
         if (user.freeTrialsLeft && user.freeTrialsLeft > 0) {
-            await this.prisma.user.update({
-                where: { id: userId },
-                data: { freeTrialsLeft: { decrement: 1 } },
-            });
             return;
         }
         if (user.subscribed) {
@@ -289,10 +287,33 @@ The color palette should be ${dto.colorPalette}.`;
             });
             const usable = activeSubs.find((s) => (s.totalCredits - s.usedCredits) > 0);
             if (usable) {
-                await this.prisma.subscription.update({
-                    where: { id: usable.id },
-                    data: { usedCredits: { increment: 1 } },
-                });
+                return;
+            }
+            throw new common_1.BadRequestException('Not enough credits left in subscription');
+        }
+        throw new common_1.BadRequestException('Not enough credits left');
+    }
+    async deductCredits(userId) {
+        const now = new Date();
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.BadRequestException('User not found');
+        if (user.freeTrialsLeft && user.freeTrialsLeft > 0) {
+            await this.prisma.user.update({ where: { id: userId }, data: { freeTrialsLeft: { decrement: 1 } } });
+            return;
+        }
+        if (user.subscribed) {
+            const activeSubs = await this.prisma.subscription.findMany({
+                where: {
+                    userId,
+                    startDate: { lte: now },
+                    endDate: { gte: now },
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+            const usable = activeSubs.find((s) => (s.totalCredits - s.usedCredits) > 0);
+            if (usable) {
+                await this.prisma.subscription.update({ where: { id: usable.id }, data: { usedCredits: { increment: 1 } } });
                 return;
             }
             throw new common_1.BadRequestException('Not enough credits left in subscription');
@@ -308,6 +329,7 @@ The color palette should be ${dto.colorPalette}.`;
         if (!openaiKey) {
             throw new common_1.InternalServerErrorException('MISSING_API_KEY: OPENAI_API_KEY is not defined in .env');
         }
+        await this.checkForCredits(userId);
         let jobId = null;
         try {
             const src = await this.s3.downloadBuffer(sourceKey);
@@ -420,6 +442,7 @@ The color palette should be ${dto.colorPalette}.`;
             const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
             const fluxCostUsd = 0.05;
             console.log('[FluxImageGeneration] apply-style Flux estimated cost USD:', fluxCostUsd.toFixed(2));
+            await this.deductCredits(userId);
             return {
                 s3Key: upload.s3Key,
                 publicUrl: upload.publicUrl,
@@ -566,6 +589,7 @@ The color palette should be ${dto.colorPalette}.`;
             const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
             const fluxCostUsd = 0.05;
             console.log('[FluxImageGeneration] Flux estimated cost USD:', fluxCostUsd.toFixed(2));
+            await this.deductCredits(userId);
             return {
                 s3Key: upload.s3Key,
                 publicUrl: upload.publicUrl,
@@ -579,6 +603,102 @@ The color palette should be ${dto.colorPalette}.`;
             if (debugEnabled)
                 throw new common_1.InternalServerErrorException(`Failed analyze/apply: ${msg}`);
             throw new common_1.InternalServerErrorException('Failed to analyze image and apply style.');
+        }
+    }
+    async generateFromS3Key(userId, s3Key, prompt) {
+        const apiKey = process.env.BFL_API_KEY;
+        if (!apiKey)
+            throw new common_1.InternalServerErrorException('MISSING_API_KEY: BFL_API_KEY is not defined in .env');
+        let jobId = null;
+        try {
+            const src = await this.s3.downloadBuffer(s3Key);
+            const buf = src.buffer;
+            const contentType = src.contentType || 'image/jpeg';
+            const bflBase = process.env.BFL_API_ENDPOINT || 'https://api.bfl.ai';
+            const endpoint = `${bflBase.replace(/\/$/, '')}/v1/flux-2-pro-preview`;
+            const body = {
+                prompt,
+                input_image: `data:${contentType};base64,${buf.toString('base64')}`,
+                output_format: 'jpeg',
+                safety_tolerance: 2,
+            };
+            const submitResponse = await this.safeFetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Key': apiKey },
+                body: JSON.stringify(body),
+            }, 'submitFromS3', 300000, 3);
+            if (!submitResponse.ok) {
+                const errDetails = await submitResponse.text().catch(() => '<no-body>');
+                throw new Error(`BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`);
+            }
+            const submitData = await submitResponse.json();
+            jobId = submitData.id;
+            if (!jobId)
+                throw new Error('BFL submission did not return job id');
+            let generatedImageUrl = null;
+            let attempt = 0;
+            const maxAttempts = 60;
+            while (attempt < maxAttempts) {
+                await new Promise((r) => setTimeout(r, 2000));
+                attempt++;
+                const pollUrl = `${bflBase.replace(/\/$/, '')}/v1/get_result?id=${encodeURIComponent(jobId)}`;
+                const pollResponse = await this.safeFetch(pollUrl, { method: 'GET', headers: { 'X-Key': apiKey } }, 'pollFromS3', 10000, 1);
+                if (!pollResponse.ok)
+                    continue;
+                const pollData = await pollResponse.json();
+                if (pollData.status === 'Ready') {
+                    generatedImageUrl = pollData.result.sample;
+                    break;
+                }
+                if (pollData.status === 'Failed' || pollData.status === 'Error') {
+                    throw new Error(`BFL Job Failed with status: ${pollData.status}`);
+                }
+            }
+            if (!generatedImageUrl)
+                throw new Error('BFL API Polling timed out');
+            const genResp = await this.safeFetch(generatedImageUrl, undefined, 'generatedImage', 20000, 2);
+            if (!genResp.ok)
+                throw new Error('Failed to download generated image');
+            const genBuffer = Buffer.from(await genResp.arrayBuffer());
+            const genContentType = genResp.headers.get('content-type') || 'image/jpeg';
+            const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
+            const presigned = await this.s3.generatePresignedDownloadUrl(upload.s3Key);
+            const design = await this.prisma.design.create({
+                data: {
+                    userId,
+                    category: 'unknown',
+                    originalImageUrl: s3Key,
+                    resultImageUrl: upload.s3Key,
+                    location: 'unknown',
+                    style: 'unknown',
+                    colorPalette: 'unknown',
+                },
+            });
+            const prismaAny = this.prisma;
+            await prismaAny.designHistory.create({
+                data: {
+                    userId,
+                    designId: design.id,
+                    originalImageKey: s3Key,
+                    resultImageKey: upload.s3Key,
+                },
+            });
+            await this.deductCredits(userId);
+            return {
+                s3Key: upload.s3Key,
+                imageUrl: upload.publicUrl,
+                publicUrl: upload.publicUrl,
+                presignedUrl: presigned,
+            };
+        }
+        catch (error) {
+            console.error('[FluxImageGeneration] generateFromS3Key failed', { s3Key, jobId, error });
+            const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
+            const errMessage = (error && error.message) ? error.message : String(error);
+            if (debugEnabled) {
+                throw new common_1.InternalServerErrorException(`Failed to generate image via Flux: ${errMessage}`);
+            }
+            throw new common_1.InternalServerErrorException('Failed to generate image via Flux.');
         }
     }
 };

@@ -19,6 +19,7 @@ const swagger_1 = require("@nestjs/swagger");
 const get_user_decorator_1 = require("../auth/decorator/get-user.decorator");
 const flux_image_generation_service_1 = require("./flux-image-generation.service");
 const apply_style_dto_1 = require("./dto/apply-style.dto");
+const generate_from_s3_dto_1 = require("./dto/generate-from-s3.dto");
 let FluxImageGenerationController = class FluxImageGenerationController {
     fluxImageGenerationService;
     constructor(fluxImageGenerationService) {
@@ -41,6 +42,14 @@ let FluxImageGenerationController = class FluxImageGenerationController {
         }
         await this.fluxImageGenerationService.checkForCredits(userId);
         const result = await this.fluxImageGenerationService.transferStyleBetweenS3Keys(userId, dto.sourceKey, dto.targetKey, dto.location);
+        return { success: true, ...result };
+    }
+    async generateFromS3(dto, userId) {
+        if (!dto || !dto.s3Key || !dto.prompt) {
+            throw new common_1.BadRequestException('s3Key and prompt are required');
+        }
+        await this.fluxImageGenerationService.checkForCredits(userId);
+        const result = await this.fluxImageGenerationService.generateFromS3Key(userId, dto.s3Key, dto.prompt);
         return { success: true, ...result };
     }
 };
@@ -88,6 +97,24 @@ __decorate([
     __metadata("design:paramtypes", [apply_style_dto_1.ApplyStyleDto, String]),
     __metadata("design:returntype", Promise)
 ], FluxImageGenerationController.prototype, "applyStyle", null);
+__decorate([
+    (0, common_1.Post)('generate-from-s3'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)('access-token'),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Generate an AI image from an S3 key using a custom prompt',
+        description: 'Takes an S3 key and a prompt string, checks user credits, submits the image to Flux, uploads the result to S3, deducts a credit, and returns URLs. Requires JWT.',
+    }),
+    (0, swagger_1.ApiBody)({ type: generate_from_s3_dto_1.GenerateFromS3Dto }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Image generated successfully via Flux' }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: 'Bad request or not enough credits' }),
+    (0, swagger_1.ApiResponse)({ status: 401, description: 'Unauthorized — invalid or missing JWT' }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, get_user_decorator_1.GetUser)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [generate_from_s3_dto_1.GenerateFromS3Dto, String]),
+    __metadata("design:returntype", Promise)
+], FluxImageGenerationController.prototype, "generateFromS3", null);
 exports.FluxImageGenerationController = FluxImageGenerationController = __decorate([
     (0, swagger_1.ApiTags)('flux-image-generation'),
     (0, common_1.Controller)('flux-image-generation'),

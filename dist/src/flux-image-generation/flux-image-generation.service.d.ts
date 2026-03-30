@@ -14,6 +14,7 @@ export declare class FluxImageGenerationService {
         s3Key: string;
     }>;
     checkForCredits(userId: string): Promise<void>;
+    deductCredits(userId: string): Promise<void>;
     transferStyleBetweenS3Keys(userId: string, sourceKey: string, targetKey: string, location: string): Promise<{
         s3Key: string;
         publicUrl: string;
@@ -23,5 +24,11 @@ export declare class FluxImageGenerationService {
         s3Key: string;
         publicUrl: string;
         unsignedUrl: string;
+    }>;
+    generateFromS3Key(userId: string, s3Key: string, prompt: string): Promise<{
+        s3Key: string;
+        imageUrl: string;
+        publicUrl: string;
+        presignedUrl: string;
     }>;
 }
