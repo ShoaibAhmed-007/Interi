@@ -299,6 +299,288 @@ The color palette should be ${dto.colorPalette}.`;
         }
         throw new common_1.BadRequestException('Not enough credits left');
     }
+    async transferStyleBetweenS3Keys(userId, sourceKey, targetKey, location) {
+        const apiKey = process.env.BFL_API_KEY;
+        if (!apiKey) {
+            throw new common_1.InternalServerErrorException('MISSING_API_KEY: BFL_API_KEY is not defined in .env');
+        }
+        const openaiKey = process.env.OPENAI_API_KEY;
+        if (!openaiKey) {
+            throw new common_1.InternalServerErrorException('MISSING_API_KEY: OPENAI_API_KEY is not defined in .env');
+        }
+        let jobId = null;
+        try {
+            const src = await this.s3.downloadBuffer(sourceKey);
+            const tgt = await this.s3.downloadBuffer(targetKey);
+            const srcBuf = src.buffer;
+            const tgtBuf = tgt.buffer;
+            const srcContentType = src.contentType || 'image/jpeg';
+            const tgtContentType = tgt.contentType || 'image/jpeg';
+            const sourceUrl = await this.s3.generatePresignedDownloadUrl(sourceKey);
+            const analysisInstruction = 'Your task is to only tell me the following things regarding the image I shared. Tell me the location of the room (for example: bedroom or living room), tell me the dominant color palette, and tell me the style (for example: modern, medieval, rustic). Respond in this exact format only: location, color, style.';
+            const openaiResp = await this.safeFetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${openaiKey}`,
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: [
+                        {
+                            role: 'user',
+                            content: [
+                                { type: 'text', text: analysisInstruction },
+                                { type: 'image_url', image_url: { url: sourceUrl } },
+                            ],
+                        },
+                    ],
+                    max_tokens: 200,
+                    temperature: 0.2,
+                }),
+            }, 'openaiStyleAnalysis', 30000, 2);
+            if (!openaiResp.ok) {
+                const errText = await openaiResp.text().catch(() => '<no-body>');
+                throw new Error(`OpenAI analysis failed: ${openaiResp.status} - ${errText}`);
+            }
+            const openaiJson = await openaiResp.json();
+            const analysisText = openaiJson?.choices?.[0]?.message?.content;
+            if (!analysisText) {
+                throw new Error('OpenAI analysis returned no content');
+            }
+            const usage = openaiJson?.usage || {};
+            const promptTokens = Number(usage.prompt_tokens || 0);
+            const completionTokens = Number(usage.completion_tokens || 0);
+            const openaiCostUsd = (promptTokens / 1_000_000) * 0.15 + (completionTokens / 1_000_000) * 0.6;
+            console.log('[FluxImageGeneration] apply-style AI response:', analysisText);
+            console.log('[FluxImageGeneration] apply-style OpenAI estimated cost USD:', openaiCostUsd.toFixed(6));
+            const parsed = analysisText.replace(/\n/g, ' ').split(',').map((x) => x.trim()).filter(Boolean);
+            if (parsed.length < 3) {
+                throw new Error('OpenAI analysis format invalid. Expected: location, color, style');
+            }
+            const aiLocation = parsed[0] || location;
+            const colorPalette = parsed[1];
+            const style = parsed[2];
+            const prompt = `Do not change dimensions and the result should not surpass 1 megapixel.\n\nThe picture is of ${aiLocation}.\nMake me a picture which has following properties.\nMake the style ${style}.\nThe color palette should be ${colorPalette}.`;
+            console.log('[FluxImageGeneration] apply-style Flux prompt:', prompt);
+            const bflBase = process.env.BFL_API_ENDPOINT || 'https://api.bfl.ai';
+            const endpoint = `${bflBase.replace(/\/$/, '')}/v1/flux-2-pro-preview`;
+            const body = {
+                prompt,
+                input_image: `data:${tgtContentType};base64,${tgtBuf.toString('base64')}`,
+                style_image: `data:${srcContentType};base64,${srcBuf.toString('base64')}`,
+                output_format: 'jpeg',
+                safety_tolerance: 2,
+            };
+            const submitResponse = await this.safeFetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Key': apiKey,
+                },
+                body: JSON.stringify(body),
+            }, 'submitStyleTransfer', 300000, 3);
+            if (!submitResponse.ok) {
+                const errDetails = await submitResponse.text().catch(() => '<no-body>');
+                throw new Error(`BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`);
+            }
+            const submitData = await submitResponse.json();
+            jobId = submitData.id;
+            if (!jobId)
+                throw new Error('BFL submission did not return job id');
+            let generatedImageUrl = null;
+            let attempt = 0;
+            const maxAttempts = 60;
+            while (attempt < maxAttempts) {
+                await new Promise((r) => setTimeout(r, 2000));
+                attempt++;
+                const pollUrl = `${bflBase.replace(/\/$/, '')}/v1/get_result?id=${encodeURIComponent(jobId)}`;
+                const pollResponse = await this.safeFetch(pollUrl, {
+                    method: 'GET',
+                    headers: { 'X-Key': apiKey },
+                }, 'pollStyle', 10000, 1);
+                if (!pollResponse.ok)
+                    continue;
+                const pollData = await pollResponse.json();
+                if (pollData.status === 'Ready') {
+                    generatedImageUrl = pollData.result.sample;
+                    break;
+                }
+                if (pollData.status === 'Failed' || pollData.status === 'Error') {
+                    throw new Error(`BFL Job Failed with status: ${pollData.status}`);
+                }
+            }
+            if (!generatedImageUrl)
+                throw new Error('BFL API Polling timed out');
+            const genResp = await this.safeFetch(generatedImageUrl, undefined, 'generatedImage', 20000, 2);
+            if (!genResp.ok)
+                throw new Error('Failed to download generated image');
+            const genBuffer = Buffer.from(await genResp.arrayBuffer());
+            const genContentType = genResp.headers.get('content-type') || 'image/jpeg';
+            const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
+            const fluxCostUsd = 0.05;
+            console.log('[FluxImageGeneration] apply-style Flux estimated cost USD:', fluxCostUsd.toFixed(2));
+            return {
+                s3Key: upload.s3Key,
+                publicUrl: upload.publicUrl,
+                unsignedUrl: upload.publicUrl,
+            };
+        }
+        catch (error) {
+            console.error('[FluxImageGeneration] Style transfer failed', { sourceKey, targetKey, jobId, error });
+            const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
+            const errMessage = (error && error.message) ? error.message : String(error);
+            if (debugEnabled) {
+                throw new common_1.InternalServerErrorException(`Failed to transfer style via Flux: ${errMessage}`);
+            }
+            throw new common_1.InternalServerErrorException('Failed to transfer style via Flux.');
+        }
+    }
+    async analyzeImageAndApplyStyle(userId, imgA, imgB, location = 'unknown location') {
+        await this.checkForCredits(userId);
+        const openaiKey = process.env.OPENAI_API_KEY;
+        if (!openaiKey)
+            throw new common_1.InternalServerErrorException('MISSING_API_KEY: OPENAI_API_KEY is not defined');
+        const bflApiKey = process.env.BFL_API_KEY;
+        if (!bflApiKey)
+            throw new common_1.InternalServerErrorException('MISSING_API_KEY: BFL_API_KEY is not defined');
+        const resolveToUrl = async (ref) => {
+            if (ref.startsWith('http'))
+                return ref;
+            return this.s3.generatePresignedDownloadUrl(ref);
+        };
+        const fetchBufferFromRef = async (ref) => {
+            if (ref.startsWith('http')) {
+                const resp = await this.safeFetch(ref, undefined, 'downloader', 20000, 1);
+                if (!resp.ok)
+                    throw new Error('Failed to download image from URL');
+                const buf = Buffer.from(await resp.arrayBuffer());
+                const ct = resp.headers.get('content-type') || 'image/jpeg';
+                return { buffer: buf, contentType: ct };
+            }
+            const dl = await this.s3.downloadBuffer(ref);
+            return { buffer: dl.buffer, contentType: dl.contentType || 'image/jpeg' };
+        };
+        try {
+            const imgAUrl = await resolveToUrl(imgA);
+            const userMsg = 'Your task is to only tell me the following things regarding the image I shared. Tell me the location of the room (for example: bedroom or living room), tell me the dominant color palette, and tell me the style (for example: modern, medieval, rustic). Respond in this exact format only: location, color, style.';
+            const openaiResp = await this.safeFetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${openaiKey}`,
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: [
+                        {
+                            role: 'user',
+                            content: [
+                                { type: 'text', text: userMsg },
+                                { type: 'image_url', image_url: { url: imgAUrl } },
+                            ],
+                        },
+                    ],
+                    max_tokens: 200,
+                    temperature: 0.2,
+                }),
+            }, 'openai', 30000, 2);
+            if (!openaiResp.ok) {
+                const txt = await openaiResp.text().catch(() => '<no-body>');
+                throw new Error(`OpenAI analysis failed: ${openaiResp.status} - ${txt}`);
+            }
+            const openaiJson = await openaiResp.json();
+            const content = openaiJson?.choices?.[0]?.message?.content;
+            if (!content)
+                throw new Error('OpenAI returned no content');
+            const usage = openaiJson?.usage || {};
+            const promptTokens = Number(usage.prompt_tokens || 0);
+            const completionTokens = Number(usage.completion_tokens || 0);
+            const inputPer1M = 0.15;
+            const outputPer1M = 0.6;
+            const openaiCostUsd = (promptTokens / 1_000_000) * inputPer1M + (completionTokens / 1_000_000) * outputPer1M;
+            console.log('[FluxImageGeneration] AI analysis (location,color,style):', content);
+            console.log('[FluxImageGeneration] OpenAI estimated cost USD:', openaiCostUsd.toFixed(6));
+            const cleaned = content.replace(/\n/g, ' ').trim();
+            const parts = cleaned.split(',').map((p) => p.trim()).filter(Boolean);
+            if (parts.length < 3)
+                throw new Error('OpenAI did not return 3 comma-separated items');
+            const detectedLocation = parts[0] || location;
+            const colorPalette = parts[1];
+            const style = parts[2];
+            const prompt = `Do not change dimensions and the result should not surpass 1 megapixel.\n\nThe picture is of ${detectedLocation}.\nMake me a picture which has following properties.\nMake the style ${style}.\nThe color palette should be ${colorPalette}.`;
+            console.log('[FluxImageGeneration] Flux prompt:', prompt);
+            const a = await fetchBufferFromRef(imgA);
+            const b = await fetchBufferFromRef(imgB);
+            const bflBase = process.env.BFL_API_ENDPOINT || 'https://api.bfl.ai';
+            const endpoint = `${bflBase.replace(/\/$/, '')}/v1/flux-2-pro-preview`;
+            const body = {
+                prompt,
+                input_image: `data:${b.contentType};base64,${b.buffer.toString('base64')}`,
+                style_image: `data:${a.contentType};base64,${a.buffer.toString('base64')}`,
+                output_format: 'jpeg',
+                safety_tolerance: 2,
+            };
+            const submitResponse = await this.safeFetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Key': bflApiKey,
+                },
+                body: JSON.stringify(body),
+            }, 'submitStyleFromAnalysis', 300000, 3);
+            if (!submitResponse.ok) {
+                const errDetails = await submitResponse.text().catch(() => '<no-body>');
+                throw new Error(`BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`);
+            }
+            const submitData = await submitResponse.json();
+            const jobId = submitData.id;
+            if (!jobId)
+                throw new Error('BFL submission did not return job id');
+            let generatedImageUrl = null;
+            let attempt = 0;
+            const maxAttempts = 60;
+            while (attempt < maxAttempts) {
+                await new Promise((r) => setTimeout(r, 2000));
+                attempt++;
+                const pollUrl = `${bflBase.replace(/\/$/, '')}/v1/get_result?id=${encodeURIComponent(jobId)}`;
+                const pollResponse = await this.safeFetch(pollUrl, { method: 'GET', headers: { 'X-Key': bflApiKey } }, 'pollAnalysis', 10000, 1);
+                if (!pollResponse.ok)
+                    continue;
+                const pollData = await pollResponse.json();
+                if (pollData.status === 'Ready') {
+                    generatedImageUrl = pollData.result.sample;
+                    break;
+                }
+                if (pollData.status === 'Failed' || pollData.status === 'Error') {
+                    throw new Error(`BFL Job Failed with status: ${pollData.status}`);
+                }
+            }
+            if (!generatedImageUrl)
+                throw new Error('BFL API Polling timed out');
+            const genResp = await this.safeFetch(generatedImageUrl, undefined, 'generatedImage', 20000, 2);
+            if (!genResp.ok)
+                throw new Error('Failed to download generated image');
+            const genBuffer = Buffer.from(await genResp.arrayBuffer());
+            const genContentType = genResp.headers.get('content-type') || 'image/jpeg';
+            const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
+            const fluxCostUsd = 0.05;
+            console.log('[FluxImageGeneration] Flux estimated cost USD:', fluxCostUsd.toFixed(2));
+            return {
+                s3Key: upload.s3Key,
+                publicUrl: upload.publicUrl,
+                unsignedUrl: upload.publicUrl,
+            };
+        }
+        catch (err) {
+            console.error('[FluxImageGeneration] analyzeAndApplyStyle failed', { imgA: imgA, imgB: imgB, error: err });
+            const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
+            const msg = (err && err.message) ? err.message : String(err);
+            if (debugEnabled)
+                throw new common_1.InternalServerErrorException(`Failed analyze/apply: ${msg}`);
+            throw new common_1.InternalServerErrorException('Failed to analyze image and apply style.');
+        }
+    }
 };
 exports.FluxImageGenerationService = FluxImageGenerationService;
 exports.FluxImageGenerationService = FluxImageGenerationService = __decorate([

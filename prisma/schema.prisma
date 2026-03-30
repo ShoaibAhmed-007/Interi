@@ -84,6 +84,9 @@ model Subscription {
   totalCredits Int // e.g. 50 tries
   usedCredits  Int @default(0)
 
+  // Optional transaction identifier from RevenueCat
+  transactionIdentifier String? @unique
+
   startDate DateTime
   endDate   DateTime
 
@@ -100,4 +103,10 @@ model Favourite {
 
   @@unique([userId, designId])
   @@index([userId])
+}
+
+model ProcessedWebhook {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
 }

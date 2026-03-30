@@ -18,6 +18,7 @@ const passport_1 = require("@nestjs/passport");
 const swagger_1 = require("@nestjs/swagger");
 const get_user_decorator_1 = require("../auth/decorator/get-user.decorator");
 const flux_image_generation_service_1 = require("./flux-image-generation.service");
+const apply_style_dto_1 = require("./dto/apply-style.dto");
 let FluxImageGenerationController = class FluxImageGenerationController {
     fluxImageGenerationService;
     constructor(fluxImageGenerationService) {
@@ -33,6 +34,14 @@ let FluxImageGenerationController = class FluxImageGenerationController {
             success: true,
             ...result,
         };
+    }
+    async applyStyle(dto, userId) {
+        if (!dto || !dto.sourceKey || !dto.targetKey || !dto.location) {
+            throw new common_1.BadRequestException('sourceKey, targetKey and location are required');
+        }
+        await this.fluxImageGenerationService.checkForCredits(userId);
+        const result = await this.fluxImageGenerationService.transferStyleBetweenS3Keys(userId, dto.sourceKey, dto.targetKey, dto.location);
+        return { success: true, ...result };
     }
 };
 exports.FluxImageGenerationController = FluxImageGenerationController;
@@ -61,6 +70,24 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], FluxImageGenerationController.prototype, "getImage", null);
+__decorate([
+    (0, common_1.Post)('apply-style'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)('access-token'),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Apply style from one S3 image to another (keep composition)',
+        description: 'Takes two S3 image keys and a `location` string. Requires a valid JWT. Checks credits, then applies the color palette and style of `sourceKey` to `targetKey` while preserving dimensions and key composition elements (windows/doors).',
+    }),
+    (0, swagger_1.ApiBody)({ type: apply_style_dto_1.ApplyStyleDto }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Style transfer completed successfully' }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: 'Bad request or not enough credits' }),
+    (0, swagger_1.ApiResponse)({ status: 401, description: 'Unauthorized — invalid or missing JWT' }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, get_user_decorator_1.GetUser)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [apply_style_dto_1.ApplyStyleDto, String]),
+    __metadata("design:returntype", Promise)
+], FluxImageGenerationController.prototype, "applyStyle", null);
 exports.FluxImageGenerationController = FluxImageGenerationController = __decorate([
     (0, swagger_1.ApiTags)('flux-image-generation'),
     (0, common_1.Controller)('flux-image-generation'),

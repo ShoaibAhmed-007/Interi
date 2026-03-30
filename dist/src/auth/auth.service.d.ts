@@ -29,30 +29,30 @@ export declare class AuthService {
     }>;
     logout(userId: string): Promise<void>;
     updateName(userId: string, name: string): Promise<{
-        name: string | null;
-        email: string;
-        profilePicture: string | null;
-        createdAt: Date;
-        freeTrialsLeft: number;
-        subscribed: boolean;
         id: string;
+        email: string;
         googleId: string | null;
         appleId: string | null;
+        name: string | null;
+        profilePicture: string | null;
+        freeTrialsLeft: number;
+        subscribed: boolean;
+        createdAt: Date;
         updatedAt: Date;
     }>;
     changePassword(userId: string, previousPassword: string, newPassword: string): Promise<{
         success: boolean;
     }>;
     updateEmail(userId: string, email: string): Promise<{
-        name: string | null;
-        email: string;
-        profilePicture: string | null;
-        createdAt: Date;
-        freeTrialsLeft: number;
-        subscribed: boolean;
         id: string;
+        email: string;
         googleId: string | null;
         appleId: string | null;
+        name: string | null;
+        profilePicture: string | null;
+        freeTrialsLeft: number;
+        subscribed: boolean;
+        createdAt: Date;
         updatedAt: Date;
     }>;
     getOrCreateProfilePicturePresignedUpload(userId: string, fileType?: string): Promise<{

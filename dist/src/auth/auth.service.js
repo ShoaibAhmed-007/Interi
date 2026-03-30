@@ -258,12 +258,11 @@ let AuthService = class AuthService {
         return tokens;
     }
     async verifyGoogleToken(idToken) {
-        const clientId = this.config.get('GOOGLE_CLIENT_ID');
-        const client = new google_auth_library_1.OAuth2Client(clientId);
-        const ticket = await client.verifyIdToken({
-            idToken,
-            audience: clientId,
-        });
+        const clientIdRaw = this.config.get('GOOGLE_CLIENT_ID') ?? '';
+        const clientIds = clientIdRaw.split(',').map((s) => s.trim()).filter(Boolean);
+        const client = new google_auth_library_1.OAuth2Client();
+        const audience = clientIds.length > 1 ? clientIds : clientIds[0];
+        const ticket = await client.verifyIdToken({ idToken, audience });
         const payload = ticket.getPayload();
         if (!payload)
             throw new common_1.ForbiddenException('Invalid Google token');

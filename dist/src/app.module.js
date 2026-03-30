@@ -20,6 +20,7 @@ const amazon_s3_module_1 = require("./amazon-s3/amazon-s3.module");
 const design_history_module_1 = require("./design-history/design-history.module");
 const public_testing_upload_module_1 = require("./public-testing-upload/public-testing-upload.module");
 const favourites_module_1 = require("./favourites/favourites.module");
+const revenuecat_module_1 = require("./revenuecat/revenuecat.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -36,6 +37,7 @@ exports.AppModule = AppModule = __decorate([
             amazon_s3_module_1.AmazonS3Module,
             public_testing_upload_module_1.PublicTestingUploadModule,
             favourites_module_1.FavouritesModule,
+            revenuecat_module_1.RevenuecatModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

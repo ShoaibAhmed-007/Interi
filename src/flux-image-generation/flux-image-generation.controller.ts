@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBody, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { GetUser } from '../auth/decorator/get-user.decorator';
 import { FluxImageGenerationService } from './flux-image-generation.service';
+import { ApplyStyleDto } from './dto/apply-style.dto';
 
 @ApiTags('flux-image-generation')
 @Controller('flux-image-generation')
@@ -44,6 +45,39 @@ export class FluxImageGenerationController {
       success: true,
       ...result,
     };
+  }
+
+  @Post('apply-style')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Apply style from one S3 image to another (keep composition)',
+    description:
+      'Takes two S3 image keys and a `location` string. Requires a valid JWT. Checks credits, then applies the color palette and style of `sourceKey` to `targetKey` while preserving dimensions and key composition elements (windows/doors).',
+  })
+  @ApiBody({ type: ApplyStyleDto })
+  @ApiResponse({ status: 200, description: 'Style transfer completed successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request or not enough credits' })
+  @ApiResponse({ status: 401, description: 'Unauthorized — invalid or missing JWT' })
+  async applyStyle(
+    @Body() dto: ApplyStyleDto,
+    @GetUser('id') userId: string,
+  ) {
+    if (!dto || !dto.sourceKey || !dto.targetKey || !dto.location) {
+      throw new BadRequestException('sourceKey, targetKey and location are required');
+    }
+
+    // Check and consume credits
+    await this.fluxImageGenerationService.checkForCredits(userId);
+
+    const result = await this.fluxImageGenerationService.transferStyleBetweenS3Keys(
+      userId,
+      dto.sourceKey,
+      dto.targetKey,
+      dto.location,
+    );
+
+    return { success: true, ...result };
   }
 
   

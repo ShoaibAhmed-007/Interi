@@ -11,6 +11,7 @@ import { AmazonS3Module } from './amazon-s3/amazon-s3.module';
 import { DesignHistoryModule } from './design-history/design-history.module';
 import { PublicTestingUploadModule } from './public-testing-upload/public-testing-upload.module';
 import { FavouritesModule } from './favourites/favourites.module';
+import { RevenuecatModule } from './revenuecat/revenuecat.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { FavouritesModule } from './favourites/favourites.module';
     AmazonS3Module,
     PublicTestingUploadModule,
     FavouritesModule,
+    RevenuecatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
