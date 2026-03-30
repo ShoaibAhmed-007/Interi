@@ -17,17 +17,16 @@ services:
       - prisma
 
   prisma:
-    image: node:18-alpine
+    build: .
     working_dir: /app
     restart: unless-stopped
     volumes:
-      - ./:/app
       - ./prisma:/app/prisma
     ports:
       - "5555:5555"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydb?schema=public
-    command: sh -c "npm ci --legacy-peer-deps >/dev/null 2>&1 || true && npx prisma migrate deploy || true && npx prisma studio --port 5555 --hostname 0.0.0.0"
+    command: sh -c "npx prisma studio --port 5555 --browser none"
 
   db:
     image: postgres:15-alpine
