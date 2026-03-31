@@ -33,11 +33,10 @@ let RevenueCatService = RevenueCatService_1 = class RevenueCatService {
         if (type === 'INITIAL_PURCHASE' || type === 'RENEWAL') {
             const productId = event.product_id ?? event.productId ?? '';
             const mapping = {
-                plan_10_usd_10_uses: 10,
-                plan_50_usd_50_uses: 50,
-                plan_100_usd_100_uses: 100,
+                plan_499_usd_50_uses: 50,
+                plan_999_usd_120_uses: 120,
             };
-            const credits = mapping[productId] ?? 0;
+            const credits = mapping[productId];
             const userId = event.app_user_id ?? event.appUserId;
             const transactionIdentifier = event.transaction_id ?? event.transactionId ?? null;
             const parseDate = (obj, keys) => {
@@ -59,6 +58,15 @@ let RevenueCatService = RevenueCatService_1 = class RevenueCatService {
             };
             const startDate = parseDate(event, ['purchase_date_ms', 'purchase_date', 'purchaseDate']) ?? new Date();
             const endDate = parseDate(event, ['expires_date_ms', 'expires_date', 'expiresDate']) ?? new Date();
+            if (!credits) {
+                this.logger.warn('RevenueCat webhook received unknown product_id; recording event only', {
+                    eventId,
+                    type,
+                    productId,
+                });
+                await this.prisma.processedWebhook.create({ data: { id: eventId, type } });
+                return { ok: true };
+            }
             await this.prisma.$transaction(async (tx) => {
                 await tx.processedWebhook.create({ data: { id: eventId, type } });
                 if (userId) {
@@ -79,10 +87,26 @@ let RevenueCatService = RevenueCatService_1 = class RevenueCatService {
         }
         if (type === 'EXPIRATION') {
             const userId = event.app_user_id ?? event.appUserId;
+            const now = new Date();
             await this.prisma.$transaction(async (tx) => {
                 await tx.processedWebhook.create({ data: { id: eventId, type } });
                 if (userId) {
                     await tx.user.update({ where: { id: userId }, data: { subscribed: false } });
+                    const activeSubs = await tx.subscription.findMany({
+                        where: {
+                            userId,
+                            endDate: { gt: now },
+                        },
+                    });
+                    for (const sub of activeSubs) {
+                        await tx.subscription.update({
+                            where: { id: sub.id },
+                            data: {
+                                endDate: now,
+                                usedCredits: sub.totalCredits,
+                            },
+                        });
+                    }
                 }
             });
             return { ok: true };
