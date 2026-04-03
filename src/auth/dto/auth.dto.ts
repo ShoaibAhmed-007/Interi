@@ -61,6 +61,8 @@ export class AppleOAuthDto {
 }
 
 export class UserDto {
+  @ApiProperty({ example: 'e7b2a3c0-4f5d-6a7b-8c9d-0e1f2a3b4c5d' })
+  id: string;
   @ApiProperty({ example: 'Alice' })
   name: string;
 

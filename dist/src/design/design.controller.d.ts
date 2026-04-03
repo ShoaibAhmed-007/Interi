@@ -4,8 +4,8 @@ export declare class DesignController {
     private readonly designService;
     constructor(designService: DesignService);
     createDesign(userId: string, createDesignDto: CreateDesignDto): Promise<{
-        createdAt: Date;
         id: string;
+        createdAt: Date;
         style: string;
         category: string;
         originalImageUrl: string;

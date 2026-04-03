@@ -16,6 +16,7 @@ export declare class AppleOAuthDto {
     fullName?: string;
 }
 export declare class UserDto {
+    id: string;
     name: string;
     email: string;
     createdAt: Date;

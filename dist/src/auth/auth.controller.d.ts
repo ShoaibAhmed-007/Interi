@@ -8,6 +8,7 @@ export declare class AuthController {
     constructor(authService: AuthService, s3: AmazonS3Service);
     getHealth(): object;
     getMe(user: any): Promise<{
+        id: any;
         name: any;
         email: any;
         createdAt: any;

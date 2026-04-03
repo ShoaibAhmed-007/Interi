@@ -93,6 +93,7 @@ __decorate([
     __metadata("design:type", String)
 ], AppleOAuthDto.prototype, "fullName", void 0);
 class UserDto {
+    id;
     name;
     email;
     createdAt;
@@ -102,6 +103,10 @@ class UserDto {
     profilePicturePublicUrl;
 }
 exports.UserDto = UserDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ example: 'e7b2a3c0-4f5d-6a7b-8c9d-0e1f2a3b4c5d' }),
+    __metadata("design:type", String)
+], UserDto.prototype, "id", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ example: 'Alice' }),
     __metadata("design:type", String)

@@ -12,10 +12,10 @@ export declare class JwtStrategy extends JwtStrategy_base {
         name: string | null;
         email: string;
         profilePicture: string | null;
+        id: string;
         createdAt: Date;
         freeTrialsLeft: number;
         subscribed: boolean;
-        id: string;
         googleId: string | null;
         appleId: string | null;
         updatedAt: Date;

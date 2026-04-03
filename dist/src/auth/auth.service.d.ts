@@ -32,10 +32,10 @@ export declare class AuthService {
         name: string | null;
         email: string;
         profilePicture: string | null;
+        id: string;
         createdAt: Date;
         freeTrialsLeft: number;
         subscribed: boolean;
-        id: string;
         googleId: string | null;
         appleId: string | null;
         updatedAt: Date;
@@ -47,10 +47,10 @@ export declare class AuthService {
         name: string | null;
         email: string;
         profilePicture: string | null;
+        id: string;
         createdAt: Date;
         freeTrialsLeft: number;
         subscribed: boolean;
-        id: string;
         googleId: string | null;
         appleId: string | null;
         updatedAt: Date;

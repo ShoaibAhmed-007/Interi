@@ -4,8 +4,8 @@ export declare class DesignService {
     private prisma;
     constructor(prisma: PrismaService);
     createDesign(userId: string, createDesignDto: CreateDesignDto): Promise<{
-        createdAt: Date;
         id: string;
+        createdAt: Date;
         style: string;
         category: string;
         originalImageUrl: string;
