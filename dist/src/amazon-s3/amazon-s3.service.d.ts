@@ -4,6 +4,7 @@ export declare class AmazonS3Service {
     private readonly s3Client;
     private readonly bucketName;
     private readonly region;
+    private readonly defaultDownloadExpiresIn;
     constructor(configService: ConfigService);
     generatePresignedUploadUrl(fileType: string, expiresIn?: number): Promise<{
         uploadUrl: string;

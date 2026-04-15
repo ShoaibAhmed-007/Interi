@@ -20,10 +20,17 @@ let AmazonS3Service = class AmazonS3Service {
     s3Client;
     bucketName;
     region;
+    defaultDownloadExpiresIn;
     constructor(configService) {
         this.configService = configService;
         this.region = this.configService.getOrThrow('AWS_REGION');
         this.bucketName = this.configService.getOrThrow('AWS_S3_BUCKET');
+        const configuredDownloadExpiresIn = Number(this.configService.get('AWS_S3_PRESIGNED_GET_EXPIRES_IN'));
+        this.defaultDownloadExpiresIn =
+            Number.isFinite(configuredDownloadExpiresIn) &&
+                configuredDownloadExpiresIn > 0
+                ? configuredDownloadExpiresIn
+                : 86400;
         this.s3Client = new client_s3_1.S3Client({
             region: this.region,
             credentials: {
@@ -47,19 +54,23 @@ let AmazonS3Service = class AmazonS3Service {
                     fileExtension = mime.replace(/[^a-z0-9]/gi, '') || 'bin';
             }
         }
-        const uniqueKey = fileExtension ? `interior-app/${(0, uuid_1.v4)()}.${fileExtension}` : `interior-app/${(0, uuid_1.v4)()}`;
+        const uniqueKey = fileExtension
+            ? `interior-app/${(0, uuid_1.v4)()}.${fileExtension}`
+            : `interior-app/${(0, uuid_1.v4)()}`;
         const command = new client_s3_1.PutObjectCommand({
             Bucket: this.bucketName,
             Key: uniqueKey,
             ContentType: fileType,
         });
         try {
-            const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, { expiresIn });
+            const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, {
+                expiresIn,
+            });
             const publicUrl = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${uniqueKey}`;
             return { uploadUrl, publicUrl, s3Key: uniqueKey };
         }
         catch (error) {
-            console.error('[AmazonS3Service] Failed to generate pre-signed URL:', error?.message ?? error);
+            console.error('[AmazonS3Service] Failed to generate pre-signed URL:', error instanceof Error ? error.message : error);
             throw new common_1.InternalServerErrorException('Failed to generate S3 pre-signed URL.');
         }
     }
@@ -77,12 +88,15 @@ let AmazonS3Service = class AmazonS3Service {
             return { publicUrl, s3Key: uniqueKey };
         }
         catch (error) {
-            console.error('[AmazonS3Service] Failed to upload buffer to S3:', error?.message ?? error);
+            console.error('[AmazonS3Service] Failed to upload buffer to S3:', error instanceof Error ? error.message : error);
             throw new common_1.InternalServerErrorException('Failed to upload file to S3.');
         }
     }
     async downloadBuffer(s3Key) {
-        const command = new client_s3_1.GetObjectCommand({ Bucket: this.bucketName, Key: s3Key });
+        const command = new client_s3_1.GetObjectCommand({
+            Bucket: this.bucketName,
+            Key: s3Key,
+        });
         try {
             const response = await this.s3Client.send(command);
             const stream = response.Body;
@@ -95,30 +109,42 @@ let AmazonS3Service = class AmazonS3Service {
             return { buffer, contentType };
         }
         catch (error) {
-            console.error('[AmazonS3Service] Failed to download object from S3:', error?.message ?? error);
+            console.error('[AmazonS3Service] Failed to download object from S3:', error instanceof Error ? error.message : error);
             throw new common_1.InternalServerErrorException('Failed to download file from S3.');
         }
     }
-    async generatePresignedDownloadUrl(s3Key, expiresIn = 3600) {
-        const command = new client_s3_1.GetObjectCommand({ Bucket: this.bucketName, Key: s3Key });
+    async generatePresignedDownloadUrl(s3Key, expiresIn) {
+        const resolvedExpiresIn = expiresIn ?? this.defaultDownloadExpiresIn;
+        const command = new client_s3_1.GetObjectCommand({
+            Bucket: this.bucketName,
+            Key: s3Key,
+        });
         try {
-            const url = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, { expiresIn });
+            const url = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, {
+                expiresIn: resolvedExpiresIn,
+            });
             return url;
         }
         catch (error) {
-            console.error('[AmazonS3Service] Failed to generate presigned GET URL:', error?.message ?? error);
+            console.error('[AmazonS3Service] Failed to generate presigned GET URL:', error instanceof Error ? error.message : error);
             throw new common_1.InternalServerErrorException('Failed to generate presigned download URL.');
         }
     }
     async generatePresignedUploadUrlForKey(s3Key, fileType, expiresIn = 300) {
-        const command = new client_s3_1.PutObjectCommand({ Bucket: this.bucketName, Key: s3Key, ContentType: fileType });
+        const command = new client_s3_1.PutObjectCommand({
+            Bucket: this.bucketName,
+            Key: s3Key,
+            ContentType: fileType,
+        });
         try {
-            const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, { expiresIn });
+            const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, {
+                expiresIn,
+            });
             const publicUrl = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${s3Key}`;
             return { uploadUrl, publicUrl, s3Key };
         }
         catch (error) {
-            console.error('[AmazonS3Service] Failed to generate presigned upload URL for key:', error?.message ?? error);
+            console.error('[AmazonS3Service] Failed to generate presigned upload URL for key:', error instanceof Error ? error.message : error);
             throw new common_1.InternalServerErrorException('Failed to generate presigned upload URL for existing key.');
         }
     }

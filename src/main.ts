@@ -7,7 +7,18 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: ['http://localhost:8081', 'http://localhost:19006', 'http://localhost:19000', 'http://192.168.100.149:8081', 'http://192.168.100.218:8081', 'http://192.168.100.123:8081'],
+    origin: [
+      'http://localhost:8081',
+      'http://localhost:8082',
+      'http://localhost:19006',
+      'http://localhost:19000',
+      'http://192.168.100.149:8081',
+      'http://192.168.100.218:8081',
+      'http://192.168.100.123:8081',
+      'http://192.168.100.149:8082',
+      'http://192.168.100.15:8081',
+      'http://192.168.100.15:8082',
+    ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -27,7 +38,13 @@ async function bootstrap() {
     )
     .build();
 
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
