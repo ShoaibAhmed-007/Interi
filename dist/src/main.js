@@ -37,7 +37,9 @@ async function bootstrap() {
     }));
     const document = swagger_1.SwaggerModule.createDocument(app, config);
     swagger_1.SwaggerModule.setup('api/docs', app, document);
-    await app.listen(process.env.PORT ?? 3000);
+    await app.listen(process.env.PORT ?? 3000, () => {
+        console.log(`PORT Listening on Port: ${process.env.PORT}`);
+    });
 }
 bootstrap();
 //# sourceMappingURL=main.js.map

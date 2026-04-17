@@ -20,7 +20,6 @@ const auth_dto_1 = require("./dto/auth.dto");
 const get_user_decorator_1 = require("./decorator/get-user.decorator");
 const amazon_s3_service_1 = require("../amazon-s3/amazon-s3.service");
 const auth_dto_2 = require("./dto/auth.dto");
-const auth_dto_3 = require("./dto/auth.dto");
 const swagger_1 = require("@nestjs/swagger");
 let AuthController = class AuthController {
     authService;
@@ -32,11 +31,14 @@ let AuthController = class AuthController {
     getHealth() {
         return this.authService.getHealthStatus();
     }
-    async getMe(user) {
+    async getMe(userId) {
+        const user = await this.authService.getMeWithSubscriptions(userId);
+        const now = new Date();
         let profilePublicUrl = null;
         if (user.profilePicture) {
             try {
-                profilePublicUrl = await this.authService.generateProfilePictureDownloadUrl(user.profilePicture);
+                profilePublicUrl =
+                    await this.authService.generateProfilePictureDownloadUrl(user.profilePicture);
             }
             catch (e) {
                 profilePublicUrl = null;
@@ -51,6 +53,18 @@ let AuthController = class AuthController {
             subscribed: user.subscribed,
             profilePicture: user.profilePicture || null,
             profilePicturePublicUrl: profilePublicUrl,
+            subscriptions: user.subscriptions.map((subscription) => ({
+                id: subscription.id,
+                userId: subscription.userId,
+                totalCredits: subscription.totalCredits,
+                usedCredits: subscription.usedCredits,
+                remainingCredits: Math.max(subscription.totalCredits - subscription.usedCredits, 0),
+                startDate: subscription.startDate,
+                endDate: subscription.endDate,
+                createdAt: subscription.createdAt,
+                transactionIdentifier: subscription.transactionIdentifier,
+                isActive: subscription.startDate <= now && subscription.endDate >= now,
+            })),
         };
     }
     async updateName(userId, dto) {
@@ -66,7 +80,11 @@ let AuthController = class AuthController {
     }
     async getPresignedProfileUploadUrl(userId, fileType) {
         const res = await this.authService.getOrCreateProfilePicturePresignedUpload(userId, fileType || 'image/jpeg');
-        return { s3Key: res.s3Key, uploadUrl: res.uploadUrl, publicUrl: res.publicUrl };
+        return {
+            s3Key: res.s3Key,
+            uploadUrl: res.uploadUrl,
+            publicUrl: res.publicUrl,
+        };
     }
     signup(signupDto) {
         return this.authService.signup(signupDto);
@@ -102,10 +120,14 @@ __decorate([
     (0, common_1.Get)('/me'),
     (0, swagger_1.ApiBearerAuth)('access-token'),
     (0, swagger_1.ApiOperation)({ summary: 'Get current authenticated user details' }),
-    (0, swagger_1.ApiResponse)({ status: 200, description: 'Returns user details including profile picture info', type: auth_dto_2.UserDto }),
-    __param(0, (0, get_user_decorator_1.GetUser)()),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Returns user details including subscription and profile picture info',
+        type: auth_dto_2.MeResponseDto,
+    }),
+    __param(0, (0, get_user_decorator_1.GetUser)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "getMe", null);
 __decorate([
@@ -113,11 +135,11 @@ __decorate([
     (0, common_1.Patch)('/profile/name'),
     (0, swagger_1.ApiBearerAuth)('access-token'),
     (0, swagger_1.ApiOperation)({ summary: 'Update authenticated user name' }),
-    (0, swagger_1.ApiBody)({ type: auth_dto_3.UpdateNameDto }),
+    (0, swagger_1.ApiBody)({ type: auth_dto_2.UpdateNameDto }),
     __param(0, (0, get_user_decorator_1.GetUser)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, auth_dto_3.UpdateNameDto]),
+    __metadata("design:paramtypes", [String, auth_dto_2.UpdateNameDto]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "updateName", null);
 __decorate([
@@ -125,11 +147,11 @@ __decorate([
     (0, common_1.Patch)('/profile/email'),
     (0, swagger_1.ApiBearerAuth)('access-token'),
     (0, swagger_1.ApiOperation)({ summary: 'Update authenticated user email' }),
-    (0, swagger_1.ApiBody)({ type: auth_dto_3.UpdateEmailDto }),
+    (0, swagger_1.ApiBody)({ type: auth_dto_2.UpdateEmailDto }),
     __param(0, (0, get_user_decorator_1.GetUser)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, auth_dto_3.UpdateEmailDto]),
+    __metadata("design:paramtypes", [String, auth_dto_2.UpdateEmailDto]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "updateEmail", null);
 __decorate([
@@ -137,19 +159,21 @@ __decorate([
     (0, common_1.Patch)('/profile/password'),
     (0, swagger_1.ApiBearerAuth)('access-token'),
     (0, swagger_1.ApiOperation)({ summary: 'Change password for authenticated user' }),
-    (0, swagger_1.ApiBody)({ type: auth_dto_3.ChangePasswordDto }),
+    (0, swagger_1.ApiBody)({ type: auth_dto_2.ChangePasswordDto }),
     __param(0, (0, get_user_decorator_1.GetUser)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, auth_dto_3.ChangePasswordDto]),
+    __metadata("design:paramtypes", [String, auth_dto_2.ChangePasswordDto]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "changePassword", null);
 __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, common_1.Patch)('/profile/picture'),
     (0, swagger_1.ApiBearerAuth)('access-token'),
-    (0, swagger_1.ApiOperation)({ summary: 'Get S3 key and pre-signed upload URL for profile picture' }),
-    (0, swagger_1.ApiResponse)({ status: 200, type: auth_dto_3.PresignedUploadResponse }),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Get S3 key and pre-signed upload URL for profile picture',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, type: auth_dto_2.PresignedUploadResponse }),
     __param(0, (0, get_user_decorator_1.GetUser)('id')),
     __param(1, (0, common_1.Query)('fileType')),
     __metadata("design:type", Function),
@@ -159,7 +183,10 @@ __decorate([
 __decorate([
     (0, common_1.Post)('/signup'),
     (0, swagger_1.ApiOperation)({ summary: 'Register a new user' }),
-    (0, swagger_1.ApiResponse)({ status: 201, description: 'User registered and tokens returned' }),
+    (0, swagger_1.ApiResponse)({
+        status: 201,
+        description: 'User registered and tokens returned',
+    }),
     (0, swagger_1.ApiBody)({ type: auth_dto_1.SignUpDto }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -170,7 +197,10 @@ __decorate([
     (0, common_1.Post)('/signin'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, swagger_1.ApiOperation)({ summary: 'Sign in with email and password' }),
-    (0, swagger_1.ApiResponse)({ status: 200, description: 'Returns access and refresh tokens' }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Returns access and refresh tokens',
+    }),
     (0, swagger_1.ApiBody)({ type: auth_dto_1.SignInDto }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -225,6 +255,7 @@ __decorate([
 exports.AuthController = AuthController = __decorate([
     (0, swagger_1.ApiTags)('auth'),
     (0, common_1.Controller)('auth'),
-    __metadata("design:paramtypes", [auth_service_1.AuthService, amazon_s3_service_1.AmazonS3Service])
+    __metadata("design:paramtypes", [auth_service_1.AuthService,
+        amazon_s3_service_1.AmazonS3Service])
 ], AuthController);
 //# sourceMappingURL=auth.controller.js.map

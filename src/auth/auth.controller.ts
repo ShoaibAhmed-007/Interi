@@ -19,8 +19,13 @@ import {
 } from './dto/auth.dto';
 import { GetUser } from './decorator/get-user.decorator';
 import { AmazonS3Service } from '../amazon-s3/amazon-s3.service';
-import { UserDto } from './dto/auth.dto';
-import { UpdateNameDto, ChangePasswordDto, PresignedUploadResponse, UpdateEmailDto } from './dto/auth.dto';
+import {
+  MeResponseDto,
+  UpdateNameDto,
+  ChangePasswordDto,
+  PresignedUploadResponse,
+  UpdateEmailDto,
+} from './dto/auth.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -32,7 +37,10 @@ import {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService, private readonly s3: AmazonS3Service) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly s3: AmazonS3Service,
+  ) {}
 
   @Get('health')
   getHealth(): object {
@@ -43,15 +51,26 @@ export class AuthController {
   @Get('/me')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get current authenticated user details' })
-  @ApiResponse({ status: 200, description: 'Returns user details including profile picture info', type: UserDto })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Returns user details including subscription and profile picture info',
+    type: MeResponseDto,
+  })
   async getMe(
-    @GetUser()
-    user: any,
+    @GetUser('id')
+    userId: string,
   ) {
+    const user = await this.authService.getMeWithSubscriptions(userId);
+    const now = new Date();
+
     let profilePublicUrl: string | null = null;
     if (user.profilePicture) {
       try {
-        profilePublicUrl = await this.authService.generateProfilePictureDownloadUrl(user.profilePicture);
+        profilePublicUrl =
+          await this.authService.generateProfilePictureDownloadUrl(
+            user.profilePicture,
+          );
       } catch (e) {
         profilePublicUrl = null;
       }
@@ -66,6 +85,21 @@ export class AuthController {
       subscribed: user.subscribed,
       profilePicture: user.profilePicture || null,
       profilePicturePublicUrl: profilePublicUrl,
+      subscriptions: user.subscriptions.map((subscription) => ({
+        id: subscription.id,
+        userId: subscription.userId,
+        totalCredits: subscription.totalCredits,
+        usedCredits: subscription.usedCredits,
+        remainingCredits: Math.max(
+          subscription.totalCredits - subscription.usedCredits,
+          0,
+        ),
+        startDate: subscription.startDate,
+        endDate: subscription.endDate,
+        createdAt: subscription.createdAt,
+        transactionIdentifier: subscription.transactionIdentifier,
+        isActive: subscription.startDate <= now && subscription.endDate >= now,
+      })),
     };
   }
 
@@ -84,7 +118,10 @@ export class AuthController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Update authenticated user email' })
   @ApiBody({ type: UpdateEmailDto })
-  async updateEmail(@GetUser('id') userId: string, @Body() dto: UpdateEmailDto) {
+  async updateEmail(
+    @GetUser('id') userId: string,
+    @Body() dto: UpdateEmailDto,
+  ) {
     const updated = await this.authService.updateEmail(userId, dto.email);
     return { email: updated.email };
   }
@@ -94,23 +131,45 @@ export class AuthController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Change password for authenticated user' })
   @ApiBody({ type: ChangePasswordDto })
-  async changePassword(@GetUser('id') userId: string, @Body() dto: ChangePasswordDto) {
-    return this.authService.changePassword(userId, dto.previousPassword, dto.newPassword);
+  async changePassword(
+    @GetUser('id') userId: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(
+      userId,
+      dto.previousPassword,
+      dto.newPassword,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Patch('/profile/picture')
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Get S3 key and pre-signed upload URL for profile picture' })
+  @ApiOperation({
+    summary: 'Get S3 key and pre-signed upload URL for profile picture',
+  })
   @ApiResponse({ status: 200, type: PresignedUploadResponse })
-  async getPresignedProfileUploadUrl(@GetUser('id') userId: string, @Query('fileType') fileType?: string) {
-    const res = await this.authService.getOrCreateProfilePicturePresignedUpload(userId, fileType || 'image/jpeg');
-    return { s3Key: res.s3Key, uploadUrl: res.uploadUrl, publicUrl: res.publicUrl };
+  async getPresignedProfileUploadUrl(
+    @GetUser('id') userId: string,
+    @Query('fileType') fileType?: string,
+  ) {
+    const res = await this.authService.getOrCreateProfilePicturePresignedUpload(
+      userId,
+      fileType || 'image/jpeg',
+    );
+    return {
+      s3Key: res.s3Key,
+      uploadUrl: res.uploadUrl,
+      publicUrl: res.publicUrl,
+    };
   }
 
   @Post('/signup')
   @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ status: 201, description: 'User registered and tokens returned' })
+  @ApiResponse({
+    status: 201,
+    description: 'User registered and tokens returned',
+  })
   @ApiBody({ type: SignUpDto })
   signup(@Body() signupDto: SignUpDto) {
     return this.authService.signup(signupDto);
@@ -119,7 +178,10 @@ export class AuthController {
   @Post('/signin')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Sign in with email and password' })
-  @ApiResponse({ status: 200, description: 'Returns access and refresh tokens' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns access and refresh tokens',
+  })
   @ApiBody({ type: SignInDto })
   signin(@Body() signinDto: SignInDto) {
     return this.authService.signin(signinDto);
