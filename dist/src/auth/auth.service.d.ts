@@ -60,6 +60,28 @@ export declare class AuthService {
         uploadUrl: string;
         publicUrl: string;
     }>;
+    getMeWithSubscriptions(userId: string): Promise<{
+        subscriptions: {
+            id: string;
+            createdAt: Date;
+            userId: string;
+            totalCredits: number;
+            usedCredits: number;
+            startDate: Date;
+            endDate: Date;
+            transactionIdentifier: string | null;
+        }[];
+        name: string | null;
+        email: string;
+        profilePicture: string | null;
+        id: string;
+        createdAt: Date;
+        freeTrialsLeft: number;
+        subscribed: boolean;
+        googleId: string | null;
+        appleId: string | null;
+        updatedAt: Date;
+    }>;
     oauthLogin(provider: 'google' | 'apple', profile: {
         id: string;
         email: string;

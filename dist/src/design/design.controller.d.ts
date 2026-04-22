@@ -6,6 +6,7 @@ export declare class DesignController {
     createDesign(userId: string, createDesignDto: CreateDesignDto): Promise<{
         id: string;
         createdAt: Date;
+        userId: string;
         style: string;
         category: string;
         originalImageUrl: string;
@@ -13,6 +14,5 @@ export declare class DesignController {
         colorPalette: string;
         seedUsed: bigint | null;
         resultImageUrl: string | null;
-        userId: string;
     }>;
 }

@@ -2,6 +2,10 @@
 
 NestJS REST API with JWT authentication (access + refresh tokens), Prisma ORM (PostgreSQL), and optional Google/Apple OAuth sign-in.
 
+## Additional documentation
+
+- RevenueCat setup and flow: `REVENUECAT_SETUP_AND_FLOW.md`
+
 ## Infrastructure overview
 
 This repo runs the backend and database in Docker. Prisma Studio is also run in Docker for table browsing.
@@ -28,6 +32,8 @@ PORT=3001
 JWT_SECRET=replace_with_a_long_random_secret
 JWT_REFRESH_SECRET=replace_with_another_long_random_secret
 ```
+
+For Docker services, `DATABASE_URL` is overridden in `docker-compose.yml` to use the Docker DB host (`db:5432`).
 
 Prisma config loads `.env` via `dotenv` in `prisma.config.ts`.
 
@@ -74,6 +80,16 @@ docker compose up -d prisma
 # View logs
 docker compose logs --tail 200 backend
 docker compose logs --tail 200 prisma
+```
+
+## Docker-first Prisma commands (via npm scripts)
+
+Use these to always run Prisma against the Docker database:
+
+```bash
+npm run prisma:migrate:deploy:docker
+npm run prisma:generate:docker
+npm run prisma:studio:docker
 ```
 
 ## Local (non-Docker) run

@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsOptional, IsEmail, IsString, MinLength, Matches } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsEmail,
+  IsString,
+  MinLength,
+  Matches,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SignUpDto {
@@ -25,7 +32,11 @@ export class SignUpDto {
 
   @IsString()
   @IsOptional()
-  @ApiProperty({ required: false, example: 'interior-app/abcd-1234.jpg', description: 'S3 key for profile picture' })
+  @ApiProperty({
+    required: false,
+    example: 'interior-app/abcd-1234.jpg',
+    description: 'S3 key for profile picture',
+  })
   profilePicture?: string;
 }
 
@@ -81,8 +92,51 @@ export class UserDto {
   @ApiProperty({ required: false, example: 'interior-app/abcd-1234.jpg' })
   profilePicture?: string | null;
 
-  @ApiProperty({ required: false, example: 'https://...amazonaws.com/interior-app/abcd-1234.jpg' })
+  @ApiProperty({
+    required: false,
+    example: 'https://...amazonaws.com/interior-app/abcd-1234.jpg',
+  })
   profilePicturePublicUrl?: string | null;
+}
+
+export class SubscriptionDetailsDto {
+  @ApiProperty({ example: '9fd20f07-4a8c-41f0-b4b0-2f69a2650eb2' })
+  id: string;
+
+  @ApiProperty({ example: 'e7b2a3c0-4f5d-6a7b-8c9d-0e1f2a3b4c5d' })
+  userId: string;
+
+  @ApiProperty({ example: 50 })
+  totalCredits: number;
+
+  @ApiProperty({ example: 10 })
+  usedCredits: number;
+
+  @ApiProperty({ example: 40 })
+  remainingCredits: number;
+
+  @ApiProperty({ example: '2026-04-16T10:00:00.000Z' })
+  startDate: Date;
+
+  @ApiProperty({ example: '2026-05-16T10:00:00.000Z' })
+  endDate: Date;
+
+  @ApiProperty({ example: '2026-04-16T10:00:00.000Z' })
+  createdAt: Date;
+
+  @ApiProperty({
+    required: false,
+    example: 'test_1776344832894_c21efa39-6974-41d8-9b0a-0796992a60cb',
+  })
+  transactionIdentifier?: string | null;
+
+  @ApiProperty({ example: true })
+  isActive: boolean;
+}
+
+export class MeResponseDto extends UserDto {
+  @ApiProperty({ type: [SubscriptionDetailsDto] })
+  subscriptions: SubscriptionDetailsDto[];
 }
 
 export class UpdateNameDto {
@@ -124,6 +178,9 @@ export class PresignedUploadResponse {
   @ApiProperty({ example: 'https://signed-upload-url' })
   uploadUrl: string;
 
-  @ApiProperty({ example: 'https://bucket.s3.region.amazonaws.com/interior-app/abcd-1234.jpg' })
+  @ApiProperty({
+    example:
+      'https://bucket.s3.region.amazonaws.com/interior-app/abcd-1234.jpg',
+  })
   publicUrl: string;
 }

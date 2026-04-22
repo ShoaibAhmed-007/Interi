@@ -7,15 +7,27 @@ export declare class AuthController {
     private readonly s3;
     constructor(authService: AuthService, s3: AmazonS3Service);
     getHealth(): object;
-    getMe(user: any): Promise<{
-        id: any;
-        name: any;
-        email: any;
-        createdAt: any;
-        freeTrialsLeft: any;
-        subscribed: any;
-        profilePicture: any;
+    getMe(userId: string): Promise<{
+        id: string;
+        name: string | null;
+        email: string;
+        createdAt: Date;
+        freeTrialsLeft: number;
+        subscribed: boolean;
+        profilePicture: string | null;
         profilePicturePublicUrl: string | null;
+        subscriptions: {
+            id: string;
+            userId: string;
+            totalCredits: number;
+            usedCredits: number;
+            remainingCredits: number;
+            startDate: Date;
+            endDate: Date;
+            createdAt: Date;
+            transactionIdentifier: string | null;
+            isActive: boolean;
+        }[];
     }>;
     updateName(userId: string, dto: UpdateNameDto): Promise<{
         name: string | null;

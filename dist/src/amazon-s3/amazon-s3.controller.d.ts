@@ -7,4 +7,9 @@ export declare class AmazonS3Controller {
         publicUrl: string;
         s3Key: string;
     }>;
+    getPresignedDownloadUrl(s3Key: string, expiresIn?: string): Promise<{
+        presignedUrl: string;
+        s3Key: string;
+        expiresIn?: number;
+    }>;
 }

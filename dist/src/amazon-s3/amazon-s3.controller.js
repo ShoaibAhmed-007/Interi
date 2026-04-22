@@ -29,6 +29,29 @@ let AmazonS3Controller = class AmazonS3Controller {
         const { uploadUrl, publicUrl, s3Key } = await this.amazonS3Service.generatePresignedUploadUrl(fileType);
         return { uploadUrl, publicUrl, s3Key };
     }
+    async getPresignedDownloadUrl(s3Key, expiresIn) {
+        const normalizedKey = s3Key?.trim();
+        if (!normalizedKey) {
+            throw new common_1.BadRequestException('Query parameter "s3Key" is required.');
+        }
+        let parsedExpiresIn;
+        if (expiresIn) {
+            const parsedValue = Number(expiresIn);
+            if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+                throw new common_1.BadRequestException('Query parameter "expiresIn" must be a positive number.');
+            }
+            parsedExpiresIn = parsedValue;
+        }
+        const presignedUrl = await this.amazonS3Service.generatePresignedDownloadUrl(normalizedKey, parsedExpiresIn);
+        const response = {
+            presignedUrl,
+            s3Key: normalizedKey,
+        };
+        if (parsedExpiresIn) {
+            response.expiresIn = parsedExpiresIn;
+        }
+        return response;
+    }
 };
 exports.AmazonS3Controller = AmazonS3Controller;
 __decorate([
@@ -49,12 +72,53 @@ __decorate([
             },
         },
     }),
-    (0, swagger_1.ApiResponse)({ status: 400, description: 'Missing or invalid query parameters.' }),
+    (0, swagger_1.ApiResponse)({
+        status: 400,
+        description: 'Missing or invalid query parameters.',
+    }),
     __param(0, (0, common_1.Query)('fileType')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AmazonS3Controller.prototype, "getPresignedUrl", null);
+__decorate([
+    (0, common_1.Get)('presigned-download-url'),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Get a pre-signed S3 download URL by key',
+        description: 'Returns a temporary signed GET URL for the provided s3Key. Uses AWS bucket/region/credentials from .env and defaults expiry from AWS_S3_PRESIGNED_GET_EXPIRES_IN or 86400 seconds.',
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 's3Key',
+        required: true,
+        example: 'interior-app/example.jpg',
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'expiresIn',
+        required: false,
+        example: 86400,
+        description: 'Optional expiration in seconds. If omitted, default from .env is used.',
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Pre-signed download URL generated successfully.',
+        schema: {
+            example: {
+                presignedUrl: 'https://swiftnine-apps.s3.eu-north-1.amazonaws.com/interior-app/example.jpg?X-Amz-...',
+                s3Key: 'interior-app/example.jpg',
+                expiresIn: 86400,
+            },
+        },
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 400,
+        description: 'Missing or invalid query parameters.',
+    }),
+    __param(0, (0, common_1.Query)('s3Key')),
+    __param(1, (0, common_1.Query)('expiresIn')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], AmazonS3Controller.prototype, "getPresignedDownloadUrl", null);
 exports.AmazonS3Controller = AmazonS3Controller = __decorate([
     (0, swagger_1.ApiTags)('S3'),
     (0, swagger_1.ApiBearerAuth)('access-token'),

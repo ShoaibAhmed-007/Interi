@@ -105,6 +105,7 @@ let AuthService = class AuthService {
             const user = await this.prisma.user.findUnique({
                 where: { email: singinDto.email },
             });
+            console.log(`Signed In User: ${user?.name}`);
             if (!user) {
                 throw new common_1.ForbiddenException('Credentials Invalid');
             }
@@ -196,18 +197,25 @@ let AuthService = class AuthService {
         if (!matches)
             throw new common_1.ForbiddenException('Previous password does not match');
         const newHash = await argon.hash(newPassword);
-        await this.prisma.user.update({ where: { id: userId }, data: { hash: newHash } });
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { hash: newHash },
+        });
         return { success: true };
     }
     async updateEmail(userId, email) {
         try {
-            const updated = await this.prisma.user.update({ where: { id: userId }, data: { email } });
+            const updated = await this.prisma.user.update({
+                where: { id: userId },
+                data: { email },
+            });
             const { hash: _, refreshToken: __, ...userWithoutSensitive } = updated;
             return userWithoutSensitive;
         }
         catch (error) {
             console.error('updateEmail error:', error);
-            if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            if (error instanceof client_1.Prisma.PrismaClientKnownRequestError &&
+                error.code === 'P2002') {
                 throw new common_1.BadRequestException('Email already exists');
             }
             throw new common_1.InternalServerErrorException('Failed to update email');
@@ -219,11 +227,36 @@ let AuthService = class AuthService {
             throw new common_1.BadRequestException('User not found');
         if (user.profilePicture) {
             const res = await this.s3.generatePresignedUploadUrlForKey(user.profilePicture, fileType);
-            return { s3Key: res.s3Key, uploadUrl: res.uploadUrl, publicUrl: res.publicUrl };
+            return {
+                s3Key: res.s3Key,
+                uploadUrl: res.uploadUrl,
+                publicUrl: res.publicUrl,
+            };
         }
         const created = await this.s3.generatePresignedUploadUrl(fileType);
-        await this.prisma.user.update({ where: { id: userId }, data: { profilePicture: created.s3Key } });
-        return { s3Key: created.s3Key, uploadUrl: created.uploadUrl, publicUrl: created.publicUrl };
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { profilePicture: created.s3Key },
+        });
+        return {
+            s3Key: created.s3Key,
+            uploadUrl: created.uploadUrl,
+            publicUrl: created.publicUrl,
+        };
+    }
+    async getMeWithSubscriptions(userId) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                subscriptions: {
+                    orderBy: { createdAt: 'desc' },
+                },
+            },
+        });
+        if (!user)
+            throw new common_1.ForbiddenException('User not found');
+        const { hash: _, refreshToken: __, ...userWithoutSensitiveFields } = user;
+        return userWithoutSensitiveFields;
     }
     async oauthLogin(provider, profile) {
         const whereClause = provider === 'google'
@@ -259,7 +292,10 @@ let AuthService = class AuthService {
     }
     async verifyGoogleToken(idToken) {
         const clientIdRaw = this.config.get('GOOGLE_CLIENT_ID') ?? '';
-        const clientIds = clientIdRaw.split(',').map((s) => s.trim()).filter(Boolean);
+        const clientIds = clientIdRaw
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
         const client = new google_auth_library_1.OAuth2Client();
         const audience = clientIds.length > 1 ? clientIds : clientIds[0];
         const ticket = await client.verifyIdToken({ idToken, audience });

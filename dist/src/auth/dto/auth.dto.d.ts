@@ -25,6 +25,21 @@ export declare class UserDto {
     profilePicture?: string | null;
     profilePicturePublicUrl?: string | null;
 }
+export declare class SubscriptionDetailsDto {
+    id: string;
+    userId: string;
+    totalCredits: number;
+    usedCredits: number;
+    remainingCredits: number;
+    startDate: Date;
+    endDate: Date;
+    createdAt: Date;
+    transactionIdentifier?: string | null;
+    isActive: boolean;
+}
+export declare class MeResponseDto extends UserDto {
+    subscriptions: SubscriptionDetailsDto[];
+}
 export declare class UpdateNameDto {
     name: string;
 }

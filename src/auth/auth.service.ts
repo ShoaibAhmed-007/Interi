@@ -46,7 +46,11 @@ export class AuthService {
       });
 
       // Return the tokens
-      const tokens = await this.signTokens(user.id, user.email, user.name ?? '');
+      const tokens = await this.signTokens(
+        user.id,
+        user.email,
+        user.name ?? '',
+      );
       await this.updateRefreshToken(user.id, tokens.refresh_token);
       return tokens;
     } catch (error) {
@@ -67,6 +71,7 @@ export class AuthService {
       const user = await this.prisma.user.findUnique({
         where: { email: singinDto.email },
       });
+      console.log(`Signed In User: ${user?.name}`);
       // Check if user email exists
       if (!user) {
         throw new ForbiddenException('Credentials Invalid');
@@ -81,7 +86,11 @@ export class AuthService {
         throw new ForbiddenException('Credentials Invalid');
       }
       // Return the tokens
-      const tokens = await this.signTokens(user.id, user.email, user.name ?? '');
+      const tokens = await this.signTokens(
+        user.id,
+        user.email,
+        user.name ?? '',
+      );
       await this.updateRefreshToken(user.id, tokens.refresh_token);
       return tokens;
     } catch (error) {
@@ -161,49 +170,96 @@ export class AuthService {
     }
   }
 
-  async changePassword(userId: string, previousPassword: string, newPassword: string) {
+  async changePassword(
+    userId: string,
+    previousPassword: string,
+    newPassword: string,
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new ForbiddenException('User not found');
-    if (!user.hash) throw new BadRequestException('Account does not have a password');
+    if (!user.hash)
+      throw new BadRequestException('Account does not have a password');
 
     const matches = await argon.verify(user.hash, previousPassword);
-    if (!matches) throw new ForbiddenException('Previous password does not match');
+    if (!matches)
+      throw new ForbiddenException('Previous password does not match');
 
     const newHash = await argon.hash(newPassword);
-    await this.prisma.user.update({ where: { id: userId }, data: { hash: newHash } });
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { hash: newHash },
+    });
     return { success: true };
   }
 
   async updateEmail(userId: string, email: string) {
     try {
-      const updated = await this.prisma.user.update({ where: { id: userId }, data: { email } });
+      const updated = await this.prisma.user.update({
+        where: { id: userId },
+        data: { email },
+      });
       const { hash: _, refreshToken: __, ...userWithoutSensitive } = updated;
       return userWithoutSensitive;
     } catch (error) {
       console.error('updateEmail error:', error);
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
         throw new BadRequestException('Email already exists');
       }
       throw new InternalServerErrorException('Failed to update email');
     }
   }
 
-  async getOrCreateProfilePicturePresignedUpload(userId: string, fileType = 'image/jpeg') {
+  async getOrCreateProfilePicturePresignedUpload(
+    userId: string,
+    fileType = 'image/jpeg',
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
     // If user already has a profile picture key, generate upload URL for that key
     if (user.profilePicture) {
-      const res = await this.s3.generatePresignedUploadUrlForKey(user.profilePicture, fileType);
-      return { s3Key: res.s3Key, uploadUrl: res.uploadUrl, publicUrl: res.publicUrl };
+      const res = await this.s3.generatePresignedUploadUrlForKey(
+        user.profilePicture,
+        fileType,
+      );
+      return {
+        s3Key: res.s3Key,
+        uploadUrl: res.uploadUrl,
+        publicUrl: res.publicUrl,
+      };
     }
 
     // Otherwise create a new key, store it in DB and return URLs
     const created = await this.s3.generatePresignedUploadUrl(fileType);
-    await this.prisma.user.update({ where: { id: userId }, data: { profilePicture: created.s3Key } });
-    return { s3Key: created.s3Key, uploadUrl: created.uploadUrl, publicUrl: created.publicUrl };
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { profilePicture: created.s3Key },
+    });
+    return {
+      s3Key: created.s3Key,
+      uploadUrl: created.uploadUrl,
+      publicUrl: created.publicUrl,
+    };
   }
 
+  async getMeWithSubscriptions(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        subscriptions: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!user) throw new ForbiddenException('User not found');
+
+    const { hash: _, refreshToken: __, ...userWithoutSensitiveFields } = user;
+    return userWithoutSensitiveFields;
+  }
 
   // ─── OAuth ───────────────────────────────────────────────────────────────
 
@@ -252,7 +308,10 @@ export class AuthService {
 
   async verifyGoogleToken(idToken: string) {
     const clientIdRaw = this.config.get<string>('GOOGLE_CLIENT_ID') ?? '';
-    const clientIds = clientIdRaw.split(',').map((s) => s.trim()).filter(Boolean);
+    const clientIds = clientIdRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     const client = new OAuth2Client();
     const audience = clientIds.length > 1 ? clientIds : clientIds[0];
     const ticket = await client.verifyIdToken({ idToken, audience });
@@ -278,7 +337,10 @@ export class AuthService {
   }
 
   // Public wrapper to generate a presigned download URL for a profile picture key
-  async generateProfilePictureDownloadUrl(s3Key: string, expiresIn = 3600): Promise<string> {
+  async generateProfilePictureDownloadUrl(
+    s3Key: string,
+    expiresIn = 3600,
+  ): Promise<string> {
     return this.s3.generatePresignedDownloadUrl(s3Key, expiresIn);
   }
 }
