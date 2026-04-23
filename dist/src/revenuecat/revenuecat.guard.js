@@ -12,6 +12,7 @@ let RevenueCatGuard = class RevenueCatGuard {
     canActivate(context) {
         const req = context.switchToHttp().getRequest();
         const auth = req.headers?.authorization;
+        console.log(`Incoming Hook: ${auth}`);
         const expected = `Bearer ${process.env.REVENUECAT_WEBHOOK_SECRET}`;
         return auth === expected;
     }
