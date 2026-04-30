@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AmazonS3Service } from '../amazon-s3/amazon-s3.service';
 import { Prisma } from '@prisma/client';
@@ -8,7 +13,10 @@ import { ProxyAgent } from 'undici';
 
 @Injectable()
 export class FluxImageGenerationService {
-  constructor(private prisma: PrismaService, private s3: AmazonS3Service) {}
+  constructor(
+    private prisma: PrismaService,
+    private s3: AmazonS3Service,
+  ) {}
 
   private async testDNS(hostname: string): Promise<string | null> {
     try {
@@ -16,12 +24,13 @@ export class FluxImageGenerationService {
       const addresses = await dnsResolve4(hostname);
       return addresses?.[0] || null;
     } catch (err) {
-      console.warn('[FluxImageGeneration] DNS resolution failed for', { hostname, err });
+      console.warn('[FluxImageGeneration] DNS resolution failed for', {
+        hostname,
+        err,
+      });
       return null;
     }
   }
-
-  
 
   private buildFetchDispatcher(): ProxyAgent | undefined {
     const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
@@ -58,15 +67,21 @@ export class FluxImageGenerationService {
         clearTimeout((err as any).timeout);
 
         // Extract error message and cause chain
-        const errMsg = err && (err as any).message ? (err as any).message : String(err);
+        const errMsg =
+          err && (err as any).message ? (err as any).message : String(err);
         const cause = (err as any).cause;
-        const causeMsg = cause && (cause as any).message ? (cause as any).message : '';
-        const causeCode = cause && (cause as any).code ? (cause as any).code : (err as any).code;
+        const causeMsg =
+          cause && (cause as any).message ? (cause as any).message : '';
+        const causeCode =
+          cause && (cause as any).code
+            ? (cause as any).code
+            : (err as any).code;
 
         const fullErrMsg = causeMsg ? `${errMsg} (cause: ${causeMsg})` : errMsg;
 
         // Detect transient errors more comprehensively
-        const isAborted = errMsg.includes('abort') || causeMsg.includes('abort');
+        const isAborted =
+          errMsg.includes('abort') || causeMsg.includes('abort');
         const isTimeout =
           errMsg.includes('Timeout') ||
           causeMsg.includes('Timeout') ||
@@ -90,7 +105,10 @@ export class FluxImageGenerationService {
             const urlObj = new URL(url);
             dnsResult = await this.testDNS(urlObj.hostname);
           } catch (e) {
-            console.warn('[FluxImageGeneration] Failed to parse URL for DNS test', { url });
+            console.warn(
+              '[FluxImageGeneration] Failed to parse URL for DNS test',
+              { url },
+            );
           }
         }
 
@@ -112,14 +130,17 @@ export class FluxImageGenerationService {
         }
 
         if (attempt === 0 && !dnsResult && isNetworkError) {
-          warnLog.dnsDiagnostics = 'DNS resolution may have failed — check network connectivity and firewall rules';
+          warnLog.dnsDiagnostics =
+            'DNS resolution may have failed — check network connectivity and firewall rules';
         }
 
         console.warn('[FluxImageGeneration] Fetch attempt failed', warnLog);
 
         if (attempt < maxRetries && isTransient) {
           const delayMs = Math.min(1000 * Math.pow(2, attempt), 5000);
-          console.info(`[FluxImageGeneration] Retrying ${label} in ${delayMs}ms...`);
+          console.info(
+            `[FluxImageGeneration] Retrying ${label} in ${delayMs}ms...`,
+          );
           await new Promise((resolve) => setTimeout(resolve, delayMs));
           continue;
         }
@@ -130,10 +151,14 @@ export class FluxImageGenerationService {
       }
     }
 
-    throw new Error(`fetch failed (${label}): exhausted ${maxRetries + 1} retries`);
+    throw new Error(
+      `fetch failed (${label}): exhausted ${maxRetries + 1} retries`,
+    );
   }
   async generateImageForDesign(designId: string) {
-    const design = await this.prisma.design.findUnique({ where: { id: designId } });
+    const design = await this.prisma.design.findUnique({
+      where: { id: designId },
+    });
     if (!design) {
       throw new NotFoundException('Design not found');
     }
@@ -150,12 +175,16 @@ export class FluxImageGenerationService {
 
     // Download original image referenced by design.originalImageUrl
     if (!design.originalImageUrl) {
-      throw new InternalServerErrorException('Design does not have an originalImageUrl');
+      throw new InternalServerErrorException(
+        'Design does not have an originalImageUrl',
+      );
     }
 
     const apiKey = process.env.BFL_API_KEY;
     if (!apiKey) {
-      throw new InternalServerErrorException('MISSING_API_KEY: BFL_API_KEY is not defined in .env');
+      throw new InternalServerErrorException(
+        'MISSING_API_KEY: BFL_API_KEY is not defined in .env',
+      );
     }
 
     let jobId: string | null = null;
@@ -181,7 +210,8 @@ export class FluxImageGenerationService {
           throw new Error('Failed to download original image');
         }
         originalBuffer = Buffer.from(await originalResp.arrayBuffer());
-        originalContentType = originalResp.headers.get('content-type') || originalContentType;
+        originalContentType =
+          originalResp.headers.get('content-type') || originalContentType;
       }
 
       // Build prompt as requested, with corrected spelling and structure
@@ -197,7 +227,7 @@ The color palette should be ${dto.colorPalette}.`;
       const endpoint = `${bflBase.replace(/\/$/, '')}/v1/flux-2-pro-preview`;
       const maskedApiKey = apiKey ? `${apiKey.slice(0, 8)}...` : null;
       const imageBase64 = originalBuffer.toString('base64');
-      
+
       const estimatedPriceCents = 5; // Flux Kontext Pro is $0.05 per image
       console.info('[FluxImageGeneration] Submitting job to FLUX.2 Pro:', {
         designId,
@@ -231,14 +261,23 @@ The color palette should be ${dto.colorPalette}.`;
 
       if (!submitResponse.ok) {
         const errDetails = await submitResponse.text();
-        console.error('[FluxImageGeneration] BFL job submission failed', { designId, status: submitResponse.status, body: errDetails });
-        throw new Error(`BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`);
+        console.error('[FluxImageGeneration] BFL job submission failed', {
+          designId,
+          status: submitResponse.status,
+          body: errDetails,
+        });
+        throw new Error(
+          `BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`,
+        );
       }
 
       const submitData = await submitResponse.json();
       jobId = submitData.id;
       if (!jobId) {
-        console.error('[FluxImageGeneration] BFL submission returned no job id', { designId, submitData });
+        console.error(
+          '[FluxImageGeneration] BFL submission returned no job id',
+          { designId, submitData },
+        );
         throw new Error('BFL submission did not return job id');
       }
 
@@ -267,7 +306,13 @@ The color palette should be ${dto.colorPalette}.`;
 
         if (!pollResponse.ok) {
           const txt = await pollResponse.text().catch(() => '<no-body>');
-          console.warn('[FluxImageGeneration] BFL poll returned non-OK', { designId, jobId, attempt, status: pollResponse.status, body: txt });
+          console.warn('[FluxImageGeneration] BFL poll returned non-OK', {
+            designId,
+            jobId,
+            attempt,
+            status: pollResponse.status,
+            body: txt,
+          });
           continue;
         }
 
@@ -277,7 +322,12 @@ The color palette should be ${dto.colorPalette}.`;
           generatedImageUrl = pollData.result.sample;
           break;
         } else if (status === 'Failed' || status === 'Error') {
-          console.error('[FluxImageGeneration] BFL reported job failure', { designId, jobId, attempt, pollData });
+          console.error('[FluxImageGeneration] BFL reported job failure', {
+            designId,
+            jobId,
+            attempt,
+            pollData,
+          });
           throw new Error(`BFL Job Failed with status: ${status}`);
         }
       }
@@ -294,17 +344,28 @@ The color palette should be ${dto.colorPalette}.`;
       );
       if (!genResp.ok) {
         const txt = await genResp.text().catch(() => '<no-body>');
-        console.error('[FluxImageGeneration] Failed to download generated image', { designId, jobId, status: genResp.status, body: txt });
+        console.error(
+          '[FluxImageGeneration] Failed to download generated image',
+          { designId, jobId, status: genResp.status, body: txt },
+        );
         throw new Error('Failed to download generated image');
       }
       const genBuffer = Buffer.from(await genResp.arrayBuffer());
-      const genContentType = genResp.headers.get('content-type') || 'image/jpeg';
+      const genContentType =
+        genResp.headers.get('content-type') || 'image/jpeg';
 
       // Upload to S3 interior-app/ folder
-      const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
+      const upload = await this.s3.uploadBuffer(
+        genBuffer,
+        'jpg',
+        genContentType,
+      );
 
       // Persist the result S3 key in the Design.resultImageUrl field
-      await this.prisma.design.update({ where: { id: designId }, data: { resultImageUrl: upload.s3Key } });
+      await this.prisma.design.update({
+        where: { id: designId },
+        data: { resultImageUrl: upload.s3Key },
+      });
 
       // Keep a generation event history row for audit/timeline use.
       const prismaAny = this.prisma as any;
@@ -317,7 +378,9 @@ The color palette should be ${dto.colorPalette}.`;
         },
       });
 
-      const presigned = await this.s3.generatePresignedDownloadUrl(upload.s3Key);
+      const presigned = await this.s3.generatePresignedDownloadUrl(
+        upload.s3Key,
+      );
 
       // Deduct one credit now that we successfully generated and stored an image
       await this.deductCredits(design.userId);
@@ -329,16 +392,29 @@ The color palette should be ${dto.colorPalette}.`;
         s3Key: upload.s3Key,
       };
     } catch (error) {
-      console.error('[FluxImageGeneration] Flux Pro generation failed', { designId, jobId, error });
+      console.error('[FluxImageGeneration] Flux Pro generation failed', {
+        designId,
+        jobId,
+        error,
+      });
       if (error && (error as any).stack) console.error((error as any).stack);
 
-      const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
-      const errMessage = (error && (error as any).message) ? (error as any).message : String(error);
+      const debugEnabled =
+        process.env.DEBUG_FLUX === 'true' ||
+        process.env.NODE_ENV !== 'production';
+      const errMessage =
+        error && (error as any).message
+          ? (error as any).message
+          : String(error);
       if (debugEnabled) {
-        throw new InternalServerErrorException(`Failed to generate image via Flux: ${errMessage}`);
+        throw new InternalServerErrorException(
+          `Failed to generate image via Flux: ${errMessage}`,
+        );
       }
 
-      throw new InternalServerErrorException('Failed to generate image via Flux.');
+      throw new InternalServerErrorException(
+        'Failed to generate image via Flux.',
+      );
     }
   }
 
@@ -369,11 +445,13 @@ The color palette should be ${dto.colorPalette}.`;
         orderBy: { createdAt: 'desc' },
       });
 
+      console.log(`Active Subs: ${activeSubs}`);
       // Find a subscription that still has available credits
-      const usable = activeSubs.find((s) => (s.totalCredits - s.usedCredits) > 0);
+      const usable = activeSubs.find((s) => s.totalCredits - s.usedCredits > 0);
       if (usable) {
         return;
       }
+      console.log(`Usable Subs: ${usable}`);
 
       throw new BadRequestException('Not enough credits left in subscription');
     }
@@ -393,7 +471,10 @@ The color palette should be ${dto.colorPalette}.`;
     if (!user) throw new BadRequestException('User not found');
 
     if (user.freeTrialsLeft && user.freeTrialsLeft > 0) {
-      await this.prisma.user.update({ where: { id: userId }, data: { freeTrialsLeft: { decrement: 1 } } });
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { freeTrialsLeft: { decrement: 1 } },
+      });
       return;
     }
 
@@ -407,9 +488,12 @@ The color palette should be ${dto.colorPalette}.`;
         orderBy: { createdAt: 'desc' },
       });
 
-      const usable = activeSubs.find((s) => (s.totalCredits - s.usedCredits) > 0);
+      const usable = activeSubs.find((s) => s.totalCredits - s.usedCredits > 0);
       if (usable) {
-        await this.prisma.subscription.update({ where: { id: usable.id }, data: { usedCredits: { increment: 1 } } });
+        await this.prisma.subscription.update({
+          where: { id: usable.id },
+          data: { usedCredits: { increment: 1 } },
+        });
         return;
       }
 
@@ -423,14 +507,23 @@ The color palette should be ${dto.colorPalette}.`;
    * Transfer style/color palette from one S3 image to another while preserving composition.
    * Downloads both images from S3, submits a FLUX job referencing both, uploads result, and returns URLs.
    */
-  async transferStyleBetweenS3Keys(userId: string, sourceKey: string, targetKey: string, location: string) {
+  async transferStyleBetweenS3Keys(
+    userId: string,
+    sourceKey: string,
+    targetKey: string,
+    location: string,
+  ) {
     const apiKey = process.env.BFL_API_KEY;
     if (!apiKey) {
-      throw new InternalServerErrorException('MISSING_API_KEY: BFL_API_KEY is not defined in .env');
+      throw new InternalServerErrorException(
+        'MISSING_API_KEY: BFL_API_KEY is not defined in .env',
+      );
     }
     const openaiKey = process.env.OPENAI_API_KEY;
     if (!openaiKey) {
-      throw new InternalServerErrorException('MISSING_API_KEY: OPENAI_API_KEY is not defined in .env');
+      throw new InternalServerErrorException(
+        'MISSING_API_KEY: OPENAI_API_KEY is not defined in .env',
+      );
     }
     // Ensure user has credits before starting
     await this.checkForCredits(userId);
@@ -481,7 +574,9 @@ The color palette should be ${dto.colorPalette}.`;
 
       if (!openaiResp.ok) {
         const errText = await openaiResp.text().catch(() => '<no-body>');
-        throw new Error(`OpenAI analysis failed: ${openaiResp.status} - ${errText}`);
+        throw new Error(
+          `OpenAI analysis failed: ${openaiResp.status} - ${errText}`,
+        );
       }
 
       const openaiJson = await openaiResp.json();
@@ -493,13 +588,27 @@ The color palette should be ${dto.colorPalette}.`;
       const usage = openaiJson?.usage || {};
       const promptTokens = Number(usage.prompt_tokens || 0);
       const completionTokens = Number(usage.completion_tokens || 0);
-      const openaiCostUsd = (promptTokens / 1_000_000) * 0.15 + (completionTokens / 1_000_000) * 0.6;
-      console.log('[FluxImageGeneration] apply-style AI response:', analysisText);
-      console.log('[FluxImageGeneration] apply-style OpenAI estimated cost USD:', openaiCostUsd.toFixed(6));
+      const openaiCostUsd =
+        (promptTokens / 1_000_000) * 0.15 +
+        (completionTokens / 1_000_000) * 0.6;
+      console.log(
+        '[FluxImageGeneration] apply-style AI response:',
+        analysisText,
+      );
+      console.log(
+        '[FluxImageGeneration] apply-style OpenAI estimated cost USD:',
+        openaiCostUsd.toFixed(6),
+      );
 
-      const parsed = analysisText.replace(/\n/g, ' ').split(',').map((x: string) => x.trim()).filter(Boolean);
+      const parsed = analysisText
+        .replace(/\n/g, ' ')
+        .split(',')
+        .map((x: string) => x.trim())
+        .filter(Boolean);
       if (parsed.length < 3) {
-        throw new Error('OpenAI analysis format invalid. Expected: location, color, style');
+        throw new Error(
+          'OpenAI analysis format invalid. Expected: location, color, style',
+        );
       }
 
       const aiLocation = parsed[0] || location;
@@ -537,7 +646,9 @@ The color palette should be ${dto.colorPalette}.`;
 
       if (!submitResponse.ok) {
         const errDetails = await submitResponse.text().catch(() => '<no-body>');
-        throw new Error(`BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`);
+        throw new Error(
+          `BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`,
+        );
       }
 
       const submitData = await submitResponse.json();
@@ -577,14 +688,28 @@ The color palette should be ${dto.colorPalette}.`;
 
       if (!generatedImageUrl) throw new Error('BFL API Polling timed out');
 
-      const genResp = await this.safeFetch(generatedImageUrl, undefined, 'generatedImage', 20000, 2);
+      const genResp = await this.safeFetch(
+        generatedImageUrl,
+        undefined,
+        'generatedImage',
+        20000,
+        2,
+      );
       if (!genResp.ok) throw new Error('Failed to download generated image');
       const genBuffer = Buffer.from(await genResp.arrayBuffer());
-      const genContentType = genResp.headers.get('content-type') || 'image/jpeg';
+      const genContentType =
+        genResp.headers.get('content-type') || 'image/jpeg';
 
-      const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
+      const upload = await this.s3.uploadBuffer(
+        genBuffer,
+        'jpg',
+        genContentType,
+      );
       const fluxCostUsd = 0.05;
-      console.log('[FluxImageGeneration] apply-style Flux estimated cost USD:', fluxCostUsd.toFixed(2));
+      console.log(
+        '[FluxImageGeneration] apply-style Flux estimated cost USD:',
+        fluxCostUsd.toFixed(2),
+      );
 
       // Deduct a credit after successful generation
       await this.deductCredits(userId);
@@ -595,13 +720,27 @@ The color palette should be ${dto.colorPalette}.`;
         unsignedUrl: upload.publicUrl,
       };
     } catch (error) {
-      console.error('[FluxImageGeneration] Style transfer failed', { sourceKey, targetKey, jobId, error });
-      const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
-      const errMessage = (error && (error as any).message) ? (error as any).message : String(error);
+      console.error('[FluxImageGeneration] Style transfer failed', {
+        sourceKey,
+        targetKey,
+        jobId,
+        error,
+      });
+      const debugEnabled =
+        process.env.DEBUG_FLUX === 'true' ||
+        process.env.NODE_ENV !== 'production';
+      const errMessage =
+        error && (error as any).message
+          ? (error as any).message
+          : String(error);
       if (debugEnabled) {
-        throw new InternalServerErrorException(`Failed to transfer style via Flux: ${errMessage}`);
+        throw new InternalServerErrorException(
+          `Failed to transfer style via Flux: ${errMessage}`,
+        );
       }
-      throw new InternalServerErrorException('Failed to transfer style via Flux.');
+      throw new InternalServerErrorException(
+        'Failed to transfer style via Flux.',
+      );
     }
   }
 
@@ -622,9 +761,15 @@ The color palette should be ${dto.colorPalette}.`;
     await this.checkForCredits(userId);
 
     const openaiKey = process.env.OPENAI_API_KEY;
-    if (!openaiKey) throw new InternalServerErrorException('MISSING_API_KEY: OPENAI_API_KEY is not defined');
+    if (!openaiKey)
+      throw new InternalServerErrorException(
+        'MISSING_API_KEY: OPENAI_API_KEY is not defined',
+      );
     const bflApiKey = process.env.BFL_API_KEY;
-    if (!bflApiKey) throw new InternalServerErrorException('MISSING_API_KEY: BFL_API_KEY is not defined');
+    if (!bflApiKey)
+      throw new InternalServerErrorException(
+        'MISSING_API_KEY: BFL_API_KEY is not defined',
+      );
 
     // helper to get a public URL for S3 key or leave http(s) URLs as-is
     const resolveToUrl = async (ref: string) => {
@@ -634,7 +779,13 @@ The color palette should be ${dto.colorPalette}.`;
 
     const fetchBufferFromRef = async (ref: string) => {
       if (ref.startsWith('http')) {
-        const resp = await this.safeFetch(ref, undefined, 'downloader', 20000, 1);
+        const resp = await this.safeFetch(
+          ref,
+          undefined,
+          'downloader',
+          20000,
+          1,
+        );
         if (!resp.ok) throw new Error('Failed to download image from URL');
         const buf = Buffer.from(await resp.arrayBuffer());
         const ct = resp.headers.get('content-type') || 'image/jpeg';
@@ -651,31 +802,39 @@ The color palette should be ${dto.colorPalette}.`;
       const userMsg =
         'Your task is to only tell me the following things regarding the image I shared. Tell me the location of the room (for example: bedroom or living room), tell me the dominant color palette, and tell me the style (for example: modern, medieval, rustic). Respond in this exact format only: location, color, style.';
 
-      const openaiResp = await this.safeFetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${openaiKey}`,
+      const openaiResp = await this.safeFetch(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${openaiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: userMsg },
+                  { type: 'image_url', image_url: { url: imgAUrl } },
+                ],
+              },
+            ],
+            max_tokens: 200,
+            temperature: 0.2,
+          }),
         },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: userMsg },
-                { type: 'image_url', image_url: { url: imgAUrl } },
-              ],
-            },
-          ],
-          max_tokens: 200,
-          temperature: 0.2,
-        }),
-      }, 'openai', 30000, 2);
+        'openai',
+        30000,
+        2,
+      );
 
       if (!openaiResp.ok) {
         const txt = await openaiResp.text().catch(() => '<no-body>');
-        throw new Error(`OpenAI analysis failed: ${openaiResp.status} - ${txt}`);
+        throw new Error(
+          `OpenAI analysis failed: ${openaiResp.status} - ${txt}`,
+        );
       }
 
       const openaiJson = await openaiResp.json();
@@ -688,14 +847,26 @@ The color palette should be ${dto.colorPalette}.`;
       // Approximate GPT-4o-mini pricing in USD per 1M tokens.
       const inputPer1M = 0.15;
       const outputPer1M = 0.6;
-      const openaiCostUsd = (promptTokens / 1_000_000) * inputPer1M + (completionTokens / 1_000_000) * outputPer1M;
-      console.log('[FluxImageGeneration] AI analysis (location,color,style):', content);
-      console.log('[FluxImageGeneration] OpenAI estimated cost USD:', openaiCostUsd.toFixed(6));
+      const openaiCostUsd =
+        (promptTokens / 1_000_000) * inputPer1M +
+        (completionTokens / 1_000_000) * outputPer1M;
+      console.log(
+        '[FluxImageGeneration] AI analysis (location,color,style):',
+        content,
+      );
+      console.log(
+        '[FluxImageGeneration] OpenAI estimated cost USD:',
+        openaiCostUsd.toFixed(6),
+      );
 
       // Expect comma-separated values; sanitize and split into three parts
       const cleaned = content.replace(/\n/g, ' ').trim();
-      const parts = cleaned.split(',').map((p: string) => p.trim()).filter(Boolean);
-      if (parts.length < 3) throw new Error('OpenAI did not return 3 comma-separated items');
+      const parts = cleaned
+        .split(',')
+        .map((p: string) => p.trim())
+        .filter(Boolean);
+      if (parts.length < 3)
+        throw new Error('OpenAI did not return 3 comma-separated items');
 
       const detectedLocation = parts[0] || location;
       const colorPalette = parts[1];
@@ -736,7 +907,9 @@ The color palette should be ${dto.colorPalette}.`;
 
       if (!submitResponse.ok) {
         const errDetails = await submitResponse.text().catch(() => '<no-body>');
-        throw new Error(`BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`);
+        throw new Error(
+          `BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`,
+        );
       }
 
       const submitData = await submitResponse.json();
@@ -772,15 +945,29 @@ The color palette should be ${dto.colorPalette}.`;
 
       if (!generatedImageUrl) throw new Error('BFL API Polling timed out');
 
-      const genResp = await this.safeFetch(generatedImageUrl, undefined, 'generatedImage', 20000, 2);
+      const genResp = await this.safeFetch(
+        generatedImageUrl,
+        undefined,
+        'generatedImage',
+        20000,
+        2,
+      );
       if (!genResp.ok) throw new Error('Failed to download generated image');
       const genBuffer = Buffer.from(await genResp.arrayBuffer());
-      const genContentType = genResp.headers.get('content-type') || 'image/jpeg';
+      const genContentType =
+        genResp.headers.get('content-type') || 'image/jpeg';
 
-      const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
+      const upload = await this.s3.uploadBuffer(
+        genBuffer,
+        'jpg',
+        genContentType,
+      );
 
       const fluxCostUsd = 0.05;
-      console.log('[FluxImageGeneration] Flux estimated cost USD:', fluxCostUsd.toFixed(2));
+      console.log(
+        '[FluxImageGeneration] Flux estimated cost USD:',
+        fluxCostUsd.toFixed(2),
+      );
 
       // Deduct a credit now that generation succeeded
       await this.deductCredits(userId);
@@ -791,11 +978,21 @@ The color palette should be ${dto.colorPalette}.`;
         unsignedUrl: upload.publicUrl,
       };
     } catch (err) {
-      console.error('[FluxImageGeneration] analyzeAndApplyStyle failed', { imgA: imgA, imgB: imgB, error: err });
-      const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
-      const msg = (err && (err as any).message) ? (err as any).message : String(err);
-      if (debugEnabled) throw new InternalServerErrorException(`Failed analyze/apply: ${msg}`);
-      throw new InternalServerErrorException('Failed to analyze image and apply style.');
+      console.error('[FluxImageGeneration] analyzeAndApplyStyle failed', {
+        imgA: imgA,
+        imgB: imgB,
+        error: err,
+      });
+      const debugEnabled =
+        process.env.DEBUG_FLUX === 'true' ||
+        process.env.NODE_ENV !== 'production';
+      const msg =
+        err && (err as any).message ? (err as any).message : String(err);
+      if (debugEnabled)
+        throw new InternalServerErrorException(`Failed analyze/apply: ${msg}`);
+      throw new InternalServerErrorException(
+        'Failed to analyze image and apply style.',
+      );
     }
   }
 
@@ -806,7 +1003,10 @@ The color palette should be ${dto.colorPalette}.`;
    */
   async generateFromS3Key(userId: string, s3Key: string, prompt: string) {
     const apiKey = process.env.BFL_API_KEY;
-    if (!apiKey) throw new InternalServerErrorException('MISSING_API_KEY: BFL_API_KEY is not defined in .env');
+    if (!apiKey)
+      throw new InternalServerErrorException(
+        'MISSING_API_KEY: BFL_API_KEY is not defined in .env',
+      );
 
     let jobId: string | null = null;
     try {
@@ -839,7 +1039,9 @@ The color palette should be ${dto.colorPalette}.`;
 
       if (!submitResponse.ok) {
         const errDetails = await submitResponse.text().catch(() => '<no-body>');
-        throw new Error(`BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`);
+        throw new Error(
+          `BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`,
+        );
       }
 
       const submitData = await submitResponse.json();
@@ -876,16 +1078,29 @@ The color palette should be ${dto.colorPalette}.`;
 
       if (!generatedImageUrl) throw new Error('BFL API Polling timed out');
 
-      const genResp = await this.safeFetch(generatedImageUrl, undefined, 'generatedImage', 20000, 2);
+      const genResp = await this.safeFetch(
+        generatedImageUrl,
+        undefined,
+        'generatedImage',
+        20000,
+        2,
+      );
       if (!genResp.ok) throw new Error('Failed to download generated image');
 
       const genBuffer = Buffer.from(await genResp.arrayBuffer());
-      const genContentType = genResp.headers.get('content-type') || 'image/jpeg';
+      const genContentType =
+        genResp.headers.get('content-type') || 'image/jpeg';
 
-      const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
+      const upload = await this.s3.uploadBuffer(
+        genBuffer,
+        'jpg',
+        genContentType,
+      );
 
       // Generate a presigned download URL for convenience
-      const presigned = await this.s3.generatePresignedDownloadUrl(upload.s3Key);
+      const presigned = await this.s3.generatePresignedDownloadUrl(
+        upload.s3Key,
+      );
 
       // Create a Design record so we can keep a history entry (this endpoint doesn't have a Design DTO)
       const design = await this.prisma.design.create({
@@ -921,13 +1136,26 @@ The color palette should be ${dto.colorPalette}.`;
         presignedUrl: presigned,
       };
     } catch (error) {
-      console.error('[FluxImageGeneration] generateFromS3Key failed', { s3Key, jobId, error });
-      const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
-      const errMessage = (error && (error as any).message) ? (error as any).message : String(error);
+      console.error('[FluxImageGeneration] generateFromS3Key failed', {
+        s3Key,
+        jobId,
+        error,
+      });
+      const debugEnabled =
+        process.env.DEBUG_FLUX === 'true' ||
+        process.env.NODE_ENV !== 'production';
+      const errMessage =
+        error && (error as any).message
+          ? (error as any).message
+          : String(error);
       if (debugEnabled) {
-        throw new InternalServerErrorException(`Failed to generate image via Flux: ${errMessage}`);
+        throw new InternalServerErrorException(
+          `Failed to generate image via Flux: ${errMessage}`,
+        );
       }
-      throw new InternalServerErrorException('Failed to generate image via Flux.');
+      throw new InternalServerErrorException(
+        'Failed to generate image via Flux.',
+      );
     }
   }
 }

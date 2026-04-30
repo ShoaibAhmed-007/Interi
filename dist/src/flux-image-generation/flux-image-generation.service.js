@@ -30,7 +30,10 @@ let FluxImageGenerationService = class FluxImageGenerationService {
             return addresses?.[0] || null;
         }
         catch (err) {
-            console.warn('[FluxImageGeneration] DNS resolution failed for', { hostname, err });
+            console.warn('[FluxImageGeneration] DNS resolution failed for', {
+                hostname,
+                err,
+            });
             return null;
         }
     }
@@ -61,7 +64,9 @@ let FluxImageGenerationService = class FluxImageGenerationService {
                 const errMsg = err && err.message ? err.message : String(err);
                 const cause = err.cause;
                 const causeMsg = cause && cause.message ? cause.message : '';
-                const causeCode = cause && cause.code ? cause.code : err.code;
+                const causeCode = cause && cause.code
+                    ? cause.code
+                    : err.code;
                 const fullErrMsg = causeMsg ? `${errMsg} (cause: ${causeMsg})` : errMsg;
                 const isAborted = errMsg.includes('abort') || causeMsg.includes('abort');
                 const isTimeout = errMsg.includes('Timeout') ||
@@ -102,7 +107,8 @@ let FluxImageGenerationService = class FluxImageGenerationService {
                     warnLog.dnsResolvedIp = dnsResult;
                 }
                 if (attempt === 0 && !dnsResult && isNetworkError) {
-                    warnLog.dnsDiagnostics = 'DNS resolution may have failed — check network connectivity and firewall rules';
+                    warnLog.dnsDiagnostics =
+                        'DNS resolution may have failed — check network connectivity and firewall rules';
                 }
                 console.warn('[FluxImageGeneration] Fetch attempt failed', warnLog);
                 if (attempt < maxRetries && isTransient) {
@@ -117,7 +123,9 @@ let FluxImageGenerationService = class FluxImageGenerationService {
         throw new Error(`fetch failed (${label}): exhausted ${maxRetries + 1} retries`);
     }
     async generateImageForDesign(designId) {
-        const design = await this.prisma.design.findUnique({ where: { id: designId } });
+        const design = await this.prisma.design.findUnique({
+            where: { id: designId },
+        });
         if (!design) {
             throw new common_1.NotFoundException('Design not found');
         }
@@ -151,7 +159,8 @@ let FluxImageGenerationService = class FluxImageGenerationService {
                     throw new Error('Failed to download original image');
                 }
                 originalBuffer = Buffer.from(await originalResp.arrayBuffer());
-                originalContentType = originalResp.headers.get('content-type') || originalContentType;
+                originalContentType =
+                    originalResp.headers.get('content-type') || originalContentType;
             }
             const prompt = `Do not change dimensions and the result should not surpass 1 megapixel.
 
@@ -188,7 +197,11 @@ The color palette should be ${dto.colorPalette}.`;
             }, 'submitJob', 300000, 3);
             if (!submitResponse.ok) {
                 const errDetails = await submitResponse.text();
-                console.error('[FluxImageGeneration] BFL job submission failed', { designId, status: submitResponse.status, body: errDetails });
+                console.error('[FluxImageGeneration] BFL job submission failed', {
+                    designId,
+                    status: submitResponse.status,
+                    body: errDetails,
+                });
                 throw new Error(`BFL Job Submission Failed: ${submitResponse.status} - ${errDetails}`);
             }
             const submitData = await submitResponse.json();
@@ -212,7 +225,13 @@ The color palette should be ${dto.colorPalette}.`;
                 }, 'poll', 10000, 1);
                 if (!pollResponse.ok) {
                     const txt = await pollResponse.text().catch(() => '<no-body>');
-                    console.warn('[FluxImageGeneration] BFL poll returned non-OK', { designId, jobId, attempt, status: pollResponse.status, body: txt });
+                    console.warn('[FluxImageGeneration] BFL poll returned non-OK', {
+                        designId,
+                        jobId,
+                        attempt,
+                        status: pollResponse.status,
+                        body: txt,
+                    });
                     continue;
                 }
                 const pollData = await pollResponse.json();
@@ -222,7 +241,12 @@ The color palette should be ${dto.colorPalette}.`;
                     break;
                 }
                 else if (status === 'Failed' || status === 'Error') {
-                    console.error('[FluxImageGeneration] BFL reported job failure', { designId, jobId, attempt, pollData });
+                    console.error('[FluxImageGeneration] BFL reported job failure', {
+                        designId,
+                        jobId,
+                        attempt,
+                        pollData,
+                    });
                     throw new Error(`BFL Job Failed with status: ${status}`);
                 }
             }
@@ -237,7 +261,10 @@ The color palette should be ${dto.colorPalette}.`;
             const genBuffer = Buffer.from(await genResp.arrayBuffer());
             const genContentType = genResp.headers.get('content-type') || 'image/jpeg';
             const upload = await this.s3.uploadBuffer(genBuffer, 'jpg', genContentType);
-            await this.prisma.design.update({ where: { id: designId }, data: { resultImageUrl: upload.s3Key } });
+            await this.prisma.design.update({
+                where: { id: designId },
+                data: { resultImageUrl: upload.s3Key },
+            });
             const prismaAny = this.prisma;
             await prismaAny.designHistory.create({
                 data: {
@@ -257,11 +284,18 @@ The color palette should be ${dto.colorPalette}.`;
             };
         }
         catch (error) {
-            console.error('[FluxImageGeneration] Flux Pro generation failed', { designId, jobId, error });
+            console.error('[FluxImageGeneration] Flux Pro generation failed', {
+                designId,
+                jobId,
+                error,
+            });
             if (error && error.stack)
                 console.error(error.stack);
-            const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
-            const errMessage = (error && error.message) ? error.message : String(error);
+            const debugEnabled = process.env.DEBUG_FLUX === 'true' ||
+                process.env.NODE_ENV !== 'production';
+            const errMessage = error && error.message
+                ? error.message
+                : String(error);
             if (debugEnabled) {
                 throw new common_1.InternalServerErrorException(`Failed to generate image via Flux: ${errMessage}`);
             }
@@ -285,7 +319,8 @@ The color palette should be ${dto.colorPalette}.`;
                 },
                 orderBy: { createdAt: 'desc' },
             });
-            const usable = activeSubs.find((s) => (s.totalCredits - s.usedCredits) > 0);
+            console.log(`Active Subs: ${activeSubs}`);
+            const usable = activeSubs.find((s) => s.totalCredits - s.usedCredits > 0);
             if (usable) {
                 return;
             }
@@ -299,7 +334,10 @@ The color palette should be ${dto.colorPalette}.`;
         if (!user)
             throw new common_1.BadRequestException('User not found');
         if (user.freeTrialsLeft && user.freeTrialsLeft > 0) {
-            await this.prisma.user.update({ where: { id: userId }, data: { freeTrialsLeft: { decrement: 1 } } });
+            await this.prisma.user.update({
+                where: { id: userId },
+                data: { freeTrialsLeft: { decrement: 1 } },
+            });
             return;
         }
         if (user.subscribed) {
@@ -311,9 +349,12 @@ The color palette should be ${dto.colorPalette}.`;
                 },
                 orderBy: { createdAt: 'desc' },
             });
-            const usable = activeSubs.find((s) => (s.totalCredits - s.usedCredits) > 0);
+            const usable = activeSubs.find((s) => s.totalCredits - s.usedCredits > 0);
             if (usable) {
-                await this.prisma.subscription.update({ where: { id: usable.id }, data: { usedCredits: { increment: 1 } } });
+                await this.prisma.subscription.update({
+                    where: { id: usable.id },
+                    data: { usedCredits: { increment: 1 } },
+                });
                 return;
             }
             throw new common_1.BadRequestException('Not enough credits left in subscription');
@@ -373,10 +414,15 @@ The color palette should be ${dto.colorPalette}.`;
             const usage = openaiJson?.usage || {};
             const promptTokens = Number(usage.prompt_tokens || 0);
             const completionTokens = Number(usage.completion_tokens || 0);
-            const openaiCostUsd = (promptTokens / 1_000_000) * 0.15 + (completionTokens / 1_000_000) * 0.6;
+            const openaiCostUsd = (promptTokens / 1_000_000) * 0.15 +
+                (completionTokens / 1_000_000) * 0.6;
             console.log('[FluxImageGeneration] apply-style AI response:', analysisText);
             console.log('[FluxImageGeneration] apply-style OpenAI estimated cost USD:', openaiCostUsd.toFixed(6));
-            const parsed = analysisText.replace(/\n/g, ' ').split(',').map((x) => x.trim()).filter(Boolean);
+            const parsed = analysisText
+                .replace(/\n/g, ' ')
+                .split(',')
+                .map((x) => x.trim())
+                .filter(Boolean);
             if (parsed.length < 3) {
                 throw new Error('OpenAI analysis format invalid. Expected: location, color, style');
             }
@@ -450,9 +496,17 @@ The color palette should be ${dto.colorPalette}.`;
             };
         }
         catch (error) {
-            console.error('[FluxImageGeneration] Style transfer failed', { sourceKey, targetKey, jobId, error });
-            const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
-            const errMessage = (error && error.message) ? error.message : String(error);
+            console.error('[FluxImageGeneration] Style transfer failed', {
+                sourceKey,
+                targetKey,
+                jobId,
+                error,
+            });
+            const debugEnabled = process.env.DEBUG_FLUX === 'true' ||
+                process.env.NODE_ENV !== 'production';
+            const errMessage = error && error.message
+                ? error.message
+                : String(error);
             if (debugEnabled) {
                 throw new common_1.InternalServerErrorException(`Failed to transfer style via Flux: ${errMessage}`);
             }
@@ -521,11 +575,15 @@ The color palette should be ${dto.colorPalette}.`;
             const completionTokens = Number(usage.completion_tokens || 0);
             const inputPer1M = 0.15;
             const outputPer1M = 0.6;
-            const openaiCostUsd = (promptTokens / 1_000_000) * inputPer1M + (completionTokens / 1_000_000) * outputPer1M;
+            const openaiCostUsd = (promptTokens / 1_000_000) * inputPer1M +
+                (completionTokens / 1_000_000) * outputPer1M;
             console.log('[FluxImageGeneration] AI analysis (location,color,style):', content);
             console.log('[FluxImageGeneration] OpenAI estimated cost USD:', openaiCostUsd.toFixed(6));
             const cleaned = content.replace(/\n/g, ' ').trim();
-            const parts = cleaned.split(',').map((p) => p.trim()).filter(Boolean);
+            const parts = cleaned
+                .split(',')
+                .map((p) => p.trim())
+                .filter(Boolean);
             if (parts.length < 3)
                 throw new Error('OpenAI did not return 3 comma-separated items');
             const detectedLocation = parts[0] || location;
@@ -597,9 +655,14 @@ The color palette should be ${dto.colorPalette}.`;
             };
         }
         catch (err) {
-            console.error('[FluxImageGeneration] analyzeAndApplyStyle failed', { imgA: imgA, imgB: imgB, error: err });
-            const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
-            const msg = (err && err.message) ? err.message : String(err);
+            console.error('[FluxImageGeneration] analyzeAndApplyStyle failed', {
+                imgA: imgA,
+                imgB: imgB,
+                error: err,
+            });
+            const debugEnabled = process.env.DEBUG_FLUX === 'true' ||
+                process.env.NODE_ENV !== 'production';
+            const msg = err && err.message ? err.message : String(err);
             if (debugEnabled)
                 throw new common_1.InternalServerErrorException(`Failed analyze/apply: ${msg}`);
             throw new common_1.InternalServerErrorException('Failed to analyze image and apply style.');
@@ -692,9 +755,16 @@ The color palette should be ${dto.colorPalette}.`;
             };
         }
         catch (error) {
-            console.error('[FluxImageGeneration] generateFromS3Key failed', { s3Key, jobId, error });
-            const debugEnabled = process.env.DEBUG_FLUX === 'true' || process.env.NODE_ENV !== 'production';
-            const errMessage = (error && error.message) ? error.message : String(error);
+            console.error('[FluxImageGeneration] generateFromS3Key failed', {
+                s3Key,
+                jobId,
+                error,
+            });
+            const debugEnabled = process.env.DEBUG_FLUX === 'true' ||
+                process.env.NODE_ENV !== 'production';
+            const errMessage = error && error.message
+                ? error.message
+                : String(error);
             if (debugEnabled) {
                 throw new common_1.InternalServerErrorException(`Failed to generate image via Flux: ${errMessage}`);
             }
@@ -705,6 +775,7 @@ The color palette should be ${dto.colorPalette}.`;
 exports.FluxImageGenerationService = FluxImageGenerationService;
 exports.FluxImageGenerationService = FluxImageGenerationService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService, amazon_s3_service_1.AmazonS3Service])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        amazon_s3_service_1.AmazonS3Service])
 ], FluxImageGenerationService);
 //# sourceMappingURL=flux-image-generation.service.js.map
