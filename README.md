@@ -55,6 +55,26 @@ Open services:
 - Swagger UI: http://localhost:3001/api/docs
 - Prisma Studio: http://localhost:5555
 
+## Public testing APIs (Swagger)
+
+These endpoints are intentionally **public** (no JWT) for local/dev testing. Do not expose them in production.
+
+### Add subscriptions (credits)
+
+- `POST /public-testing-subscriptions/add-subscriptions`
+- Body:
+  - `userId` (UUID)
+  - `credits` (number > 0)
+  - `subscriptionName` (string)
+
+Example:
+
+```bash
+curl -X POST "http://localhost:3001/public-testing-subscriptions/add-subscriptions" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"userId\":\"<user-uuid>\",\"credits\":50,\"subscriptionName\":\"plan_499_usd_50_uses\"}"
+```
+
 ## Docker: if containers are already running
 
 ```bash

@@ -21,6 +21,7 @@ const design_history_module_1 = require("./design-history/design-history.module"
 const public_testing_upload_module_1 = require("./public-testing-upload/public-testing-upload.module");
 const favourites_module_1 = require("./favourites/favourites.module");
 const revenuecat_module_1 = require("./revenuecat/revenuecat.module");
+const public_testing_subscriptions_module_1 = require("./public-testing-subscriptions/public-testing-subscriptions.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -36,6 +37,7 @@ exports.AppModule = AppModule = __decorate([
             design_history_module_1.DesignHistoryModule,
             amazon_s3_module_1.AmazonS3Module,
             public_testing_upload_module_1.PublicTestingUploadModule,
+            public_testing_subscriptions_module_1.PublicTestingSubscriptionsModule,
             favourites_module_1.FavouritesModule,
             revenuecat_module_1.RevenuecatModule,
         ],

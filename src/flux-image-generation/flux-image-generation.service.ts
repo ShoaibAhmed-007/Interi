@@ -155,12 +155,16 @@ export class FluxImageGenerationService {
       `fetch failed (${label}): exhausted ${maxRetries + 1} retries`,
     );
   }
-  async generateImageForDesign(designId: string) {
+  async generateImageForDesign(requestingUserId: string, designId: string) {
     const design = await this.prisma.design.findUnique({
       where: { id: designId },
     });
     if (!design) {
       throw new NotFoundException('Design not found');
+    }
+
+    if (design.userId !== requestingUserId) {
+      throw new BadRequestException('Design does not belong to the current user');
     }
 
     // Ensure user has credits before starting heavy work
@@ -419,8 +423,8 @@ The color palette should be ${dto.colorPalette}.`;
   }
 
   /**
-   * Check and consume credits for a user before generating an image.
-   * Priority: use freeTrialsLeft if available, otherwise consume from an active subscription.
+   * Check whether a user has credits available.
+   * Priority: use freeTrialsLeft if available, otherwise use an active subscription.
    * Throws BadRequestException if no credits are available.
    */
   async checkForCredits(userId: string) {
@@ -429,8 +433,8 @@ The color palette should be ${dto.colorPalette}.`;
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
-    // If user has free trials remaining, decrement and allow
-    if (user.freeTrialsLeft && user.freeTrialsLeft > 0) {
+    // If user has free trials remaining, allow generation
+    if (user.freeTrialsLeft > 0) {
       return;
     }
 
@@ -445,13 +449,11 @@ The color palette should be ${dto.colorPalette}.`;
         orderBy: { createdAt: 'desc' },
       });
 
-      console.log(`Active Subs: ${activeSubs}`);
       // Find a subscription that still has available credits
       const usable = activeSubs.find((s) => s.totalCredits - s.usedCredits > 0);
       if (usable) {
         return;
       }
-      console.log(`Usable Subs: ${usable}`);
 
       throw new BadRequestException('Not enough credits left in subscription');
     }
@@ -470,7 +472,7 @@ The color palette should be ${dto.colorPalette}.`;
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
-    if (user.freeTrialsLeft && user.freeTrialsLeft > 0) {
+    if (user.freeTrialsLeft > 0) {
       await this.prisma.user.update({
         where: { id: userId },
         data: { freeTrialsLeft: { decrement: 1 } },
@@ -998,8 +1000,7 @@ The color palette should be ${dto.colorPalette}.`;
 
   /**
    * Generate an image using a provided S3 key as input and a custom prompt.
-   * Controller should call `checkForCredits` before invoking this method; this method
-   * will deduct one credit after successful generation/upload.
+   * Checks for credits before starting and deducts one credit after successful generation/upload.
    */
   async generateFromS3Key(userId: string, s3Key: string, prompt: string) {
     const apiKey = process.env.BFL_API_KEY;
@@ -1007,6 +1008,9 @@ The color palette should be ${dto.colorPalette}.`;
       throw new InternalServerErrorException(
         'MISSING_API_KEY: BFL_API_KEY is not defined in .env',
       );
+
+    // Ensure user has credits before starting heavy work
+    await this.checkForCredits(userId);
 
     let jobId: string | null = null;
     try {

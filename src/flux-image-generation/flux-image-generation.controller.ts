@@ -37,10 +37,10 @@ export class FluxImageGenerationController {
       throw new BadRequestException('designId is required');
     }
 
-    // Check and consume credits before generation
-    await this.fluxImageGenerationService.checkForCredits(userId);
-
-    const result = await this.fluxImageGenerationService.generateImageForDesign(designId);
+    const result = await this.fluxImageGenerationService.generateImageForDesign(
+      userId,
+      designId,
+    );
 
     return {
       success: true,
@@ -67,9 +67,6 @@ export class FluxImageGenerationController {
     if (!dto || !dto.sourceKey || !dto.targetKey || !dto.location) {
       throw new BadRequestException('sourceKey, targetKey and location are required');
     }
-
-    // Check and consume credits
-    await this.fluxImageGenerationService.checkForCredits(userId);
 
     const result = await this.fluxImageGenerationService.transferStyleBetweenS3Keys(
       userId,
@@ -100,9 +97,6 @@ export class FluxImageGenerationController {
     if (!dto || !dto.s3Key || !dto.prompt) {
       throw new BadRequestException('s3Key and prompt are required');
     }
-
-    // Check availability of credits before starting the FLUX job
-    await this.fluxImageGenerationService.checkForCredits(userId);
 
     const result = await this.fluxImageGenerationService.generateFromS3Key(userId, dto.s3Key, dto.prompt);
 

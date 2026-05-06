@@ -12,6 +12,7 @@ import { DesignHistoryModule } from './design-history/design-history.module';
 import { PublicTestingUploadModule } from './public-testing-upload/public-testing-upload.module';
 import { FavouritesModule } from './favourites/favourites.module';
 import { RevenuecatModule } from './revenuecat/revenuecat.module';
+import { PublicTestingSubscriptionsModule } from './public-testing-subscriptions/public-testing-subscriptions.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { RevenuecatModule } from './revenuecat/revenuecat.module';
     DesignHistoryModule,
     AmazonS3Module,
     PublicTestingUploadModule,
+    PublicTestingSubscriptionsModule,
     FavouritesModule,
     RevenuecatModule,
   ],

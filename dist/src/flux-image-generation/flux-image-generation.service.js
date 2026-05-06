@@ -122,12 +122,15 @@ let FluxImageGenerationService = class FluxImageGenerationService {
         }
         throw new Error(`fetch failed (${label}): exhausted ${maxRetries + 1} retries`);
     }
-    async generateImageForDesign(designId) {
+    async generateImageForDesign(requestingUserId, designId) {
         const design = await this.prisma.design.findUnique({
             where: { id: designId },
         });
         if (!design) {
             throw new common_1.NotFoundException('Design not found');
+        }
+        if (design.userId !== requestingUserId) {
+            throw new common_1.BadRequestException('Design does not belong to the current user');
         }
         await this.checkForCredits(design.userId);
         const dto = {
@@ -307,7 +310,7 @@ The color palette should be ${dto.colorPalette}.`;
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
         if (!user)
             throw new common_1.BadRequestException('User not found');
-        if (user.freeTrialsLeft && user.freeTrialsLeft > 0) {
+        if (user.freeTrialsLeft > 0) {
             return;
         }
         if (user.subscribed) {
@@ -319,7 +322,6 @@ The color palette should be ${dto.colorPalette}.`;
                 },
                 orderBy: { createdAt: 'desc' },
             });
-            console.log(`Active Subs: ${activeSubs}`);
             const usable = activeSubs.find((s) => s.totalCredits - s.usedCredits > 0);
             if (usable) {
                 return;
@@ -333,7 +335,7 @@ The color palette should be ${dto.colorPalette}.`;
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
         if (!user)
             throw new common_1.BadRequestException('User not found');
-        if (user.freeTrialsLeft && user.freeTrialsLeft > 0) {
+        if (user.freeTrialsLeft > 0) {
             await this.prisma.user.update({
                 where: { id: userId },
                 data: { freeTrialsLeft: { decrement: 1 } },
@@ -672,6 +674,7 @@ The color palette should be ${dto.colorPalette}.`;
         const apiKey = process.env.BFL_API_KEY;
         if (!apiKey)
             throw new common_1.InternalServerErrorException('MISSING_API_KEY: BFL_API_KEY is not defined in .env');
+        await this.checkForCredits(userId);
         let jobId = null;
         try {
             const src = await this.s3.downloadBuffer(s3Key);

@@ -29,8 +29,7 @@ let FluxImageGenerationController = class FluxImageGenerationController {
         if (!designId) {
             throw new common_1.BadRequestException('designId is required');
         }
-        await this.fluxImageGenerationService.checkForCredits(userId);
-        const result = await this.fluxImageGenerationService.generateImageForDesign(designId);
+        const result = await this.fluxImageGenerationService.generateImageForDesign(userId, designId);
         return {
             success: true,
             ...result,
@@ -40,7 +39,6 @@ let FluxImageGenerationController = class FluxImageGenerationController {
         if (!dto || !dto.sourceKey || !dto.targetKey || !dto.location) {
             throw new common_1.BadRequestException('sourceKey, targetKey and location are required');
         }
-        await this.fluxImageGenerationService.checkForCredits(userId);
         const result = await this.fluxImageGenerationService.transferStyleBetweenS3Keys(userId, dto.sourceKey, dto.targetKey, dto.location);
         return { success: true, ...result };
     }
@@ -48,7 +46,6 @@ let FluxImageGenerationController = class FluxImageGenerationController {
         if (!dto || !dto.s3Key || !dto.prompt) {
             throw new common_1.BadRequestException('s3Key and prompt are required');
         }
-        await this.fluxImageGenerationService.checkForCredits(userId);
         const result = await this.fluxImageGenerationService.generateFromS3Key(userId, dto.s3Key, dto.prompt);
         return { success: true, ...result };
     }
