@@ -10,6 +10,17 @@ export class RevenueCatService {
     try {
       const event = payload?.event ?? payload;
       this.logger.debug(`Incoming payload: ${JSON.stringify(payload)}`);
+      // Console dump for debugging: show full incoming payload and resolved event
+      try {
+        console.log('[RevenueCat] Raw payload:', JSON.stringify(payload, null, 2));
+        console.log('[RevenueCat] Resolved event:', JSON.stringify(event, null, 2));
+      } catch (err) {
+        // fallback in case of circular structures
+        console.log('[RevenueCat] Raw payload (stringify failed), using direct log:');
+        console.log(payload);
+        console.log('[RevenueCat] Resolved event:');
+        console.log(event);
+      }
       if (!event || !event.id || !event.type) {
         this.logger.warn('Invalid event payload');
         return { ok: true };
@@ -92,6 +103,22 @@ export class RevenueCatService {
           'expires_date',
           'expiresDate',
         ]) ?? new Date();
+
+      // Console log parsed summary values for quick inspection in terminal
+      try {
+        console.log('[RevenueCat] Parsed fields:', {
+          id: eventId,
+          type,
+          productId,
+          app_user_id: userId,
+          transactionIdentifier,
+          startDate: startDate?.toISOString(),
+          endDate: endDate?.toISOString(),
+          event_timestamp_ms: event.event_timestamp_ms ?? event.event_timestamp ?? event.eventTimestamp ?? null,
+        });
+      } catch (err) {
+        console.log('[RevenueCat] Parsed fields (fallback): id=', eventId, 'type=', type);
+      }
 
       // Purchase / Renewal flows
       if (purchaseEvents.has(type)) {
