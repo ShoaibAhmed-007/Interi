@@ -69,13 +69,29 @@ export class RevenueCatService {
         event.transaction_id ?? event.transactionId ?? null;
       const startDate =
         parseDate(event, [
+          // RevenueCat variants seen in different webhook payloads
+          'purchased_at_ms',
+          'purchased_at',
+          'purchasedAt',
           'purchase_date_ms',
           'purchase_date',
           'purchaseDate',
+          // fallback to event timestamp if purchase time is not present
+          'event_timestamp_ms',
+          'event_timestamp',
+          'eventTimestamp',
         ]) ?? new Date();
+
       const endDate =
-        parseDate(event, ['expires_date_ms', 'expires_date', 'expiresDate']) ??
-        new Date();
+        parseDate(event, [
+          // RevenueCat expiration variants
+          'expiration_at_ms',
+          'expiration_at',
+          'expirationAt',
+          'expires_date_ms',
+          'expires_date',
+          'expiresDate',
+        ]) ?? new Date();
 
       // Purchase / Renewal flows
       if (purchaseEvents.has(type)) {
@@ -160,16 +176,22 @@ export class RevenueCatService {
 
             await tx.user.update({ where: { id: userId }, data: { subscribed: false } });
 
-            const activeSubs = await tx.subscription.findMany({
-              where: { userId, endDate: { gt: now } },
-            });
-
-            for (const sub of activeSubs) {
-              await tx.subscription.update({
-                where: { id: sub.id },
-                data: { endDate: now, usedCredits: sub.totalCredits },
+            // Delete expired/targeted subscriptions for this user.
+            // Prefer deleting by transaction identifier when available,
+            // otherwise delete subscriptions that have already expired.
+            let deletedResult: any;
+            if (transactionIdentifier) {
+              deletedResult = await tx.subscription.deleteMany({
+                where: { userId, transactionIdentifier },
+              });
+            } else {
+              deletedResult = await tx.subscription.deleteMany({
+                where: { userId, endDate: { lte: now } },
               });
             }
+            this.logger.log(
+              `[RevenueCat] Deleted ${deletedResult?.count ?? 0} expired/targeted subscriptions for userId=${userId}`,
+            );
           });
           this.logger.log(`Cancel/expire handled eventId=${eventId}`);
         } catch (err) {
