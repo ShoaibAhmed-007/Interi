@@ -6,14 +6,14 @@ export declare class PublicTestingSubscriptionsService {
         userId: string;
         subscribed: boolean;
         subscription: {
-            userId: string;
             id: string;
             createdAt: Date;
+            userId: string;
             totalCredits: number;
             usedCredits: number;
-            transactionIdentifier: string | null;
             startDate: Date;
             endDate: Date;
+            transactionIdentifier: string | null;
         };
     }>;
 }

@@ -23,6 +23,11 @@ export class RevenueCatService {
       }
       if (!event || !event.id || !event.type) {
         this.logger.warn('Invalid event payload');
+        try {
+          console.log('[RevenueCat] Invalid event payload received:', JSON.stringify(payload, null, 2));
+        } catch (e) {
+          console.log('[RevenueCat] Invalid event payload received (raw):', payload);
+        }
         return { ok: true };
       }
 
@@ -38,6 +43,11 @@ export class RevenueCatService {
         this.logger.log(
           `Event already processed; skipping duplicate eventId=${eventId}`,
         );
+        try {
+          console.log('[RevenueCat] Duplicate processedWebhook record:', JSON.stringify(existing, null, 2));
+        } catch (e) {
+          console.log('[RevenueCat] Duplicate processedWebhook record (raw):', existing);
+        }
         return { ok: true };
       }
 
@@ -93,7 +103,7 @@ export class RevenueCatService {
           'eventTimestamp',
         ]) ?? new Date();
 
-      const endDate =
+      let endDate =
         parseDate(event, [
           // RevenueCat expiration variants
           'expiration_at_ms',
@@ -103,6 +113,24 @@ export class RevenueCatService {
           'expires_date',
           'expiresDate',
         ]) ?? new Date();
+
+      // If the purchase start date is today, set endDate to one month after startDate
+      const isSameUTCDate = (a: Date, b: Date) =>
+        a.getUTCFullYear() === b.getUTCFullYear() &&
+        a.getUTCMonth() === b.getUTCMonth() &&
+        a.getUTCDate() === b.getUTCDate();
+
+      try {
+        const now = new Date();
+        if (startDate && isSameUTCDate(startDate, now)) {
+          const nextMonth = new Date(startDate.getTime());
+          nextMonth.setMonth(nextMonth.getMonth() + 1);
+          endDate = nextMonth;
+        }
+      } catch (err) {
+        // If adjustment fails, keep parsed endDate and continue
+        this.logger.debug('Failed to adjust endDate to one month after startDate', err as any);
+      }
 
       // Console log parsed summary values for quick inspection in terminal
       try {
@@ -131,18 +159,33 @@ export class RevenueCatService {
             'Unknown product_id; recording webhook only',
             { eventId, type, productId },
           );
+          try {
+            console.log('[RevenueCat] Unknown product_id; productId=', productId, 'eventId=', eventId);
+          } catch (e) {
+            console.log('[RevenueCat] Unknown product_id branch hit');
+          }
           await this.prisma.processedWebhook.create({ data: { id: eventId, type } });
           return { ok: true };
         }
 
         try {
           await this.prisma.$transaction(async (tx) => {
-            await tx.processedWebhook.create({ data: { id: eventId, type } });
+            const processed = await tx.processedWebhook.create({ data: { id: eventId, type } });
+            try {
+              console.log('[RevenueCat] processedWebhook created (purchase):', JSON.stringify(processed, null, 2));
+            } catch (e) {
+              console.log('[RevenueCat] processedWebhook created (purchase):', processed);
+            }
 
             if (!userId) {
               this.logger.log(
                 `No userId in event; processedWebhook recorded eventId=${eventId}`,
               );
+              try {
+                console.log('[RevenueCat] Event missing app_user_id, event:', JSON.stringify(event, null, 2));
+              } catch (e) {
+                console.log('[RevenueCat] Event missing app_user_id (raw):', event);
+              }
               return;
             }
 
@@ -151,15 +194,17 @@ export class RevenueCatService {
               this.logger.warn(
                 `User not found for app_user_id=${userId}; skipping DB user/subscription update`,
               );
+              console.log('[RevenueCat] Could not find user for id:', userId);
               return;
             }
 
-            await tx.user.update({
+            const updatedUser = await tx.user.update({
               where: { id: userId },
               data: { subscribed: true },
             });
+            console.log('[RevenueCat] User updated subscribed=true:', updatedUser);
 
-            await tx.subscription.create({
+            const createdSub = await tx.subscription.create({
               data: {
                 userId,
                 totalCredits: credits,
@@ -169,10 +214,17 @@ export class RevenueCatService {
                 transactionIdentifier,
               },
             });
+            try {
+              console.log('[RevenueCat] Subscription created:', JSON.stringify(createdSub, null, 2));
+            } catch (e) {
+              console.log('[RevenueCat] Subscription created (raw):', createdSub);
+            }
           });
           this.logger.log(`Purchase/renewal handled eventId=${eventId}`);
+          console.log('[RevenueCat] Purchase/renewal flow completed for eventId=', eventId);
         } catch (err) {
           this.logger.error(`Error processing purchase event ${eventId}`, err as any);
+          console.log('[RevenueCat] Error processing purchase event', eventId, err);
         }
 
         return { ok: true };
@@ -184,12 +236,22 @@ export class RevenueCatService {
         const now = new Date();
         try {
           await this.prisma.$transaction(async (tx) => {
-            await tx.processedWebhook.create({ data: { id: eventId, type } });
+            const processed = await tx.processedWebhook.create({ data: { id: eventId, type } });
+            try {
+              console.log('[RevenueCat] processedWebhook created (cancel/expire):', JSON.stringify(processed, null, 2));
+            } catch (e) {
+              console.log('[RevenueCat] processedWebhook created (cancel/expire):', processed);
+            }
 
             if (!userId) {
               this.logger.log(
                 `No userId present in event; recorded processedWebhook eventId=${eventId}`,
               );
+              try {
+                console.log('[RevenueCat] No userId present in event:', JSON.stringify(event, null, 2));
+              } catch (e) {
+                console.log('[RevenueCat] No userId present in event (raw):', event);
+              }
               return;
             }
 
@@ -198,10 +260,12 @@ export class RevenueCatService {
               this.logger.warn(
                 `User not found for app_user_id=${userId}; skipping cancel/expire updates`,
               );
+              console.log('[RevenueCat] Could not find user for id:', userId);
               return;
             }
 
-            await tx.user.update({ where: { id: userId }, data: { subscribed: false } });
+            const updatedUser = await tx.user.update({ where: { id: userId }, data: { subscribed: false } });
+            console.log('[RevenueCat] User updated subscribed=false:', updatedUser);
 
             // Delete expired/targeted subscriptions for this user.
             // Prefer deleting by transaction identifier when available,
@@ -219,10 +283,13 @@ export class RevenueCatService {
             this.logger.log(
               `[RevenueCat] Deleted ${deletedResult?.count ?? 0} expired/targeted subscriptions for userId=${userId}`,
             );
+            console.log('[RevenueCat] Deleted subscription result:', deletedResult);
           });
           this.logger.log(`Cancel/expire handled eventId=${eventId}`);
+          console.log('[RevenueCat] Cancel/expire flow completed for eventId=', eventId);
         } catch (err) {
           this.logger.error(`Error processing cancel/expire event ${eventId}`, err as any);
+          console.log('[RevenueCat] Error processing cancel/expire event', eventId, err);
         }
 
         return { ok: true };
@@ -232,6 +299,11 @@ export class RevenueCatService {
       this.logger.log(
         `[RevenueCat] Unhandled event type=${type}; recording processedWebhook eventId=${eventId}`,
       );
+      try {
+        console.log('[RevenueCat] Unhandled event type, details:', { id: eventId, type, productId, app_user_id: userId });
+      } catch (e) {
+        console.log('[RevenueCat] Unhandled event type (raw event):', event);
+      }
       await this.prisma.processedWebhook.create({ data: { id: eventId, type } });
       return { ok: true };
     } catch (err) {
