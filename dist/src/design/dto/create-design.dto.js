@@ -19,6 +19,7 @@ var DesignCategory;
     DesignCategory["EXTERIOR"] = "EXTERIOR";
     DesignCategory["LANDSCAPE"] = "LANDSCAPE";
     DesignCategory["NEW_FLOORING"] = "NEW_FLOORING";
+    DesignCategory["FURNITURE_DESIGN"] = "FURNITURE_DESIGN";
 })(DesignCategory || (exports.DesignCategory = DesignCategory = {}));
 class CreateDesignDto {
     category;
@@ -33,7 +34,9 @@ __decorate([
     (0, swagger_1.ApiProperty)({ enum: DesignCategory, example: DesignCategory.INTERIOR }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
-    (0, class_validator_1.IsEnum)(DesignCategory, { message: 'category must be one of: INTERIOR, EXTERIOR, LANDSCAPE, NEW_FLOORING' }),
+    (0, class_validator_1.IsEnum)(DesignCategory, {
+        message: 'category must be one of: INTERIOR, EXTERIOR, LANDSCAPE, NEW_FLOORING',
+    }),
     __metadata("design:type", String)
 ], CreateDesignDto.prototype, "category", void 0);
 __decorate([
@@ -64,9 +67,13 @@ __decorate([
     __metadata("design:type", String)
 ], CreateDesignDto.prototype, "colorPalette", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ type: 'number', example: null, description: 'Optional numeric seed used by the AI' }),
+    (0, swagger_1.ApiPropertyOptional)({
+        type: 'number',
+        example: null,
+        description: 'Optional numeric seed used by the AI',
+    }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_transformer_1.Transform)(({ value }) => (value !== null && value !== undefined ? BigInt(value) : null)),
+    (0, class_transformer_1.Transform)(({ value }) => value !== null && value !== undefined ? BigInt(value) : null),
     __metadata("design:type", BigInt)
 ], CreateDesignDto.prototype, "seedUsed", void 0);
 //# sourceMappingURL=create-design.dto.js.map

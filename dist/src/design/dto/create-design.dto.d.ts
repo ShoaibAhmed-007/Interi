@@ -2,7 +2,8 @@ export declare enum DesignCategory {
     INTERIOR = "INTERIOR",
     EXTERIOR = "EXTERIOR",
     LANDSCAPE = "LANDSCAPE",
-    NEW_FLOORING = "NEW_FLOORING"
+    NEW_FLOORING = "NEW_FLOORING",
+    FURNITURE_DESIGN = "FURNITURE_DESIGN"
 }
 export declare class CreateDesignDto {
     category: string;

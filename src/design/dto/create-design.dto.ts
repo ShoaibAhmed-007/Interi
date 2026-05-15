@@ -8,13 +8,17 @@ export enum DesignCategory {
   EXTERIOR = 'EXTERIOR',
   LANDSCAPE = 'LANDSCAPE',
   NEW_FLOORING = 'NEW_FLOORING',
+  FURNITURE_DESIGN = 'FURNITURE_DESIGN',
 }
 
 export class CreateDesignDto {
   @ApiProperty({ enum: DesignCategory, example: DesignCategory.INTERIOR })
   @IsString()
   @IsNotEmpty()
-  @IsEnum(DesignCategory, { message: 'category must be one of: INTERIOR, EXTERIOR, LANDSCAPE, NEW_FLOORING' })
+  @IsEnum(DesignCategory, {
+    message:
+      'category must be one of: INTERIOR, EXTERIOR, LANDSCAPE, NEW_FLOORING',
+  })
   category: string;
 
   @ApiProperty({ example: 'https://example.com/original.jpg' })
@@ -25,8 +29,6 @@ export class CreateDesignDto {
   @ApiPropertyOptional({ example: 'living room' })
   @IsString()
   @IsOptional()
-  
-
   @ApiProperty({ example: 'Living Room' })
   @IsString()
   @IsNotEmpty()
@@ -42,8 +44,14 @@ export class CreateDesignDto {
   @IsNotEmpty()
   colorPalette: string;
 
-  @ApiPropertyOptional({ type: 'number', example: null, description: 'Optional numeric seed used by the AI' })
+  @ApiPropertyOptional({
+    type: 'number',
+    example: null,
+    description: 'Optional numeric seed used by the AI',
+  })
   @IsOptional()
-  @Transform(({ value }) => (value !== null && value !== undefined ? BigInt(value) : null))
+  @Transform(({ value }) =>
+    value !== null && value !== undefined ? BigInt(value) : null,
+  )
   seedUsed?: bigint;
 }
