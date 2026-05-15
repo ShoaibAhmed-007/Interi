@@ -17,7 +17,7 @@ export class CreateDesignDto {
   @IsNotEmpty()
   @IsEnum(DesignCategory, {
     message:
-      'category must be one of: INTERIOR, EXTERIOR, LANDSCAPE, NEW_FLOORING',
+      'category must be one of: INTERIOR, EXTERIOR, LANDSCAPE, NEW_FLOORING, or FURNITURE_DESIGN',
   })
   category: string;
 
