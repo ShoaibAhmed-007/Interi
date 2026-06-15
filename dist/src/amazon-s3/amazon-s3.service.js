@@ -130,6 +130,23 @@ let AmazonS3Service = class AmazonS3Service {
             throw new common_1.InternalServerErrorException('Failed to generate presigned download URL.');
         }
     }
+    async deleteObjects(s3Keys) {
+        if (!s3Keys.length)
+            return;
+        const command = new client_s3_1.DeleteObjectsCommand({
+            Bucket: this.bucketName,
+            Delete: {
+                Objects: s3Keys.map((Key) => ({ Key })),
+                Quiet: true,
+            },
+        });
+        try {
+            await this.s3Client.send(command);
+        }
+        catch (error) {
+            console.error('[AmazonS3Service] Failed to batch-delete S3 objects:', error instanceof Error ? error.message : error);
+        }
+    }
     async generatePresignedUploadUrlForKey(s3Key, fileType, expiresIn = 300) {
         const command = new client_s3_1.PutObjectCommand({
             Bucket: this.bucketName,

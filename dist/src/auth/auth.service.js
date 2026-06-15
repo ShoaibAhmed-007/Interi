@@ -319,6 +319,32 @@ let AuthService = class AuthService {
             name: fullName ?? user.email ?? '',
         };
     }
+    async deleteAccount(userId) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: { designHistories: true },
+        });
+        if (!user)
+            throw new common_1.ForbiddenException('User not found');
+        const s3Keys = [];
+        if (user.profilePicture)
+            s3Keys.push(user.profilePicture);
+        for (const h of user.designHistories) {
+            if (h.originalImageKey && !h.originalImageKey.startsWith('http'))
+                s3Keys.push(h.originalImageKey);
+            if (h.resultImageKey && !h.resultImageKey.startsWith('http'))
+                s3Keys.push(h.resultImageKey);
+        }
+        await this.prisma.$transaction([
+            this.prisma.designHistory.deleteMany({ where: { userId } }),
+            this.prisma.favourite.deleteMany({ where: { userId } }),
+            this.prisma.design.deleteMany({ where: { userId } }),
+            this.prisma.subscription.deleteMany({ where: { userId } }),
+            this.prisma.user.delete({ where: { id: userId } }),
+        ]);
+        await this.s3.deleteObjects(s3Keys);
+        return { message: 'Account and all associated data deleted successfully' };
+    }
     async generateProfilePictureDownloadUrl(s3Key, expiresIn = 3600) {
         return this.s3.generatePresignedDownloadUrl(s3Key, expiresIn);
     }

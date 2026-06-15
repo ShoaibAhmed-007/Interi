@@ -35,7 +35,7 @@ __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
     (0, class_validator_1.IsEnum)(DesignCategory, {
-        message: 'category must be one of: INTERIOR, EXTERIOR, LANDSCAPE, NEW_FLOORING',
+        message: 'category must be one of: INTERIOR, EXTERIOR, LANDSCAPE, NEW_FLOORING, or FURNITURE_DESIGN',
     }),
     __metadata("design:type", String)
 ], CreateDesignDto.prototype, "category", void 0);

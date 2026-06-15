@@ -103,6 +103,9 @@ let AuthController = class AuthController {
         const profile = await this.authService.verifyGoogleToken(dto.idToken);
         return this.authService.oauthLogin('google', profile);
     }
+    deleteAccount(userId) {
+        return this.authService.deleteAccount(userId);
+    }
     async appleOAuth(dto) {
         const profile = await this.authService.verifyAppleToken(dto.identityToken, dto.fullName);
         return this.authService.oauthLogin('apple', profile);
@@ -242,6 +245,23 @@ __decorate([
     __metadata("design:paramtypes", [auth_dto_1.GoogleOAuthDto]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "googleOAuth", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, common_1.Delete)('/account'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, swagger_1.ApiBearerAuth)('access-token'),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Delete authenticated user account and all associated data',
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Account deleted — removes user record, designs, design history, favourites, subscriptions, and S3 assets',
+    }),
+    __param(0, (0, get_user_decorator_1.GetUser)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "deleteAccount", null);
 __decorate([
     (0, common_1.Post)('/oauth/apple'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),

@@ -60,6 +60,9 @@ export declare class AuthController {
         access_token: string;
         refresh_token: string;
     }>;
+    deleteAccount(userId: string): Promise<{
+        message: string;
+    }>;
     appleOAuth(dto: AppleOAuthDto): Promise<{
         access_token: string;
         refresh_token: string;

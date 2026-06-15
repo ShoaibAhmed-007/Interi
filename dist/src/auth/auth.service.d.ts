@@ -100,5 +100,8 @@ export declare class AuthService {
         email: string;
         name: string;
     }>;
+    deleteAccount(userId: string): Promise<{
+        message: string;
+    }>;
     generateProfilePictureDownloadUrl(s3Key: string, expiresIn?: number): Promise<string>;
 }

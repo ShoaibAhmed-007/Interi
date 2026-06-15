@@ -4,6 +4,7 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectsCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
@@ -179,6 +180,31 @@ export class AmazonS3Service {
       );
       throw new InternalServerErrorException(
         'Failed to generate presigned download URL.',
+      );
+    }
+  }
+
+  /**
+   * Delete multiple S3 objects by key in a single batch request.
+   * Silently ignores keys that do not exist. Non-fatal: logs errors but does not throw.
+   */
+  async deleteObjects(s3Keys: string[]): Promise<void> {
+    if (!s3Keys.length) return;
+
+    const command = new DeleteObjectsCommand({
+      Bucket: this.bucketName,
+      Delete: {
+        Objects: s3Keys.map((Key) => ({ Key })),
+        Quiet: true,
+      },
+    });
+
+    try {
+      await this.s3Client.send(command);
+    } catch (error) {
+      console.error(
+        '[AmazonS3Service] Failed to batch-delete S3 objects:',
+        error instanceof Error ? error.message : error,
       );
     }
   }

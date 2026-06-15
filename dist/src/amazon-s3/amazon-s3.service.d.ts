@@ -20,6 +20,7 @@ export declare class AmazonS3Service {
         contentType: string;
     }>;
     generatePresignedDownloadUrl(s3Key: string, expiresIn?: number): Promise<string>;
+    deleteObjects(s3Keys: string[]): Promise<void>;
     generatePresignedUploadUrlForKey(s3Key: string, fileType: string, expiresIn?: number): Promise<{
         uploadUrl: string;
         publicUrl: string;

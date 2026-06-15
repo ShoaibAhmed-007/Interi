@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Patch,
   Query,
+  Delete,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -218,6 +219,22 @@ export class AuthController {
     console.log('Google Requested');
     const profile = await this.authService.verifyGoogleToken(dto.idToken);
     return this.authService.oauthLogin('google', profile);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete('/account')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Delete authenticated user account and all associated data',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Account deleted — removes user record, designs, design history, favourites, subscriptions, and S3 assets',
+  })
+  deleteAccount(@GetUser('id') userId: string) {
+    return this.authService.deleteAccount(userId);
   }
 
   @Post('/oauth/apple')

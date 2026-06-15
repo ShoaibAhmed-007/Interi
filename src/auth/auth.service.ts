@@ -336,6 +336,39 @@ export class AuthService {
     };
   }
 
+  async deleteAccount(userId: string): Promise<{ message: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { designHistories: true },
+    });
+
+    if (!user) throw new ForbiddenException('User not found');
+
+    // Collect S3 keys to purge (profile picture + all design history images)
+    const s3Keys: string[] = [];
+    if (user.profilePicture) s3Keys.push(user.profilePicture);
+    for (const h of user.designHistories) {
+      if (h.originalImageKey && !h.originalImageKey.startsWith('http'))
+        s3Keys.push(h.originalImageKey);
+      if (h.resultImageKey && !h.resultImageKey.startsWith('http'))
+        s3Keys.push(h.resultImageKey);
+    }
+
+    // Delete all related DB records then the user — order respects FK constraints
+    await this.prisma.$transaction([
+      this.prisma.designHistory.deleteMany({ where: { userId } }),
+      this.prisma.favourite.deleteMany({ where: { userId } }),
+      this.prisma.design.deleteMany({ where: { userId } }),
+      this.prisma.subscription.deleteMany({ where: { userId } }),
+      this.prisma.user.delete({ where: { id: userId } }),
+    ]);
+
+    // Best-effort S3 cleanup after DB records are gone
+    await this.s3.deleteObjects(s3Keys);
+
+    return { message: 'Account and all associated data deleted successfully' };
+  }
+
   // Public wrapper to generate a presigned download URL for a profile picture key
   async generateProfilePictureDownloadUrl(
     s3Key: string,
