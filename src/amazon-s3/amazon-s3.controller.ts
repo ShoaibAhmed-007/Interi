@@ -16,8 +16,6 @@ import { AuthGuard } from '@nestjs/passport';
 import { AmazonS3Service } from './amazon-s3.service';
 
 @ApiTags('S3')
-@ApiBearerAuth('access-token')
-@UseGuards(AuthGuard('jwt'))
 @Controller('s3')
 export class AmazonS3Controller {
   constructor(private readonly amazonS3Service: AmazonS3Service) {}
@@ -27,8 +25,12 @@ export class AmazonS3Controller {
    *
    * Returns a short-lived S3 pre-signed upload URL and the permanent
    * public URL where the file will live after the client PUTs to S3.
+   *
+   * Auth required: uploading is part of the (protected) generation flow.
    */
   @Get('presigned-url')
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('jwt'))
   @ApiOperation({
     summary: 'Get a pre-signed S3 upload URL',
     description:
@@ -63,6 +65,13 @@ export class AmazonS3Controller {
     return { uploadUrl, publicUrl, s3Key };
   }
 
+  /**
+   * Public (no auth): read-only presigned GET URLs for displaying images.
+   * Guests must be able to browse the Explore gallery without signing in
+   * (App Store guest-access requirement). Keys are random UUIDs and presigned
+   * URLs are inherently shareable read links, so this exposes no write access
+   * and no account data. Upload and all generation endpoints remain protected.
+   */
   @Get('presigned-download-url')
   @ApiOperation({
     summary: 'Get a pre-signed S3 download URL by key',
